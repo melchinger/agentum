@@ -1,45 +1,77 @@
 # Agentum
 
-`agentum` ist ein zentrales Template- und Generator-Repository fÃ¼r neue Projekt-Repositories mit professionellen Agent-Instruktionen, Sicherheitsleitplanken und stack-spezifischen Skeletons.
+`agentum` hilft dir, neue Repositories sauber aufzusetzen oder bestehende Projekte sicher nachzurüsten.
 
-## Ziele
+Es ist gemacht für Teams und Einzelentwickler, die bereits schnell "vibe-coded" haben und jetzt Ordnung, Sicherheit und nachvollziehbare Regeln brauchen.
 
-- gemeinsame Governance und saubere Projektstruktur als Standard
-- `AGENTS.md` als kanonische Agent-Datei
-- Varianten fÃ¼r `node`, `react`, `nextjs`, `php`, `python`
-- interaktive und skriptbare Initialisierung neuer Ziel-Repositories
+## Was das Tool macht
 
-## Repository-Struktur
+- erzeugt neue Projektstrukturen mit klaren Standards
+- erstellt oder ergänzt `AGENTS.md` als zentrale Agent-Anweisung
+- analysiert bestehende Repositories, bevor Änderungen geschrieben werden
+- trennt sichere Auto-Änderungen von manueller Prüfung
+- erstellt einen priorisierten Refactoring-Plan statt blind umzubauen
 
-- `docs/` Hintergrundwissen und Maintainer-Doku
-- `templates/base/` gemeinsame Dateien und Basis-Instruktionen
-- `variants/` stack-spezifische Overlays und Skeleton-Dateien
-- `scripts/` CLI und Generatorlogik
-- `tests/` Generator- und IntegrationsprÃ¼fungen
+## Für wen das sinnvoll ist
 
-## Nutzung
+- du hast schnell prototypisiert und willst den Code jetzt professionalisieren
+- du willst nicht bei jeder Session dieselben Regeln neu erklären
+- du willst riskante Änderungen zuerst als Plan sehen
+- du willst Team-Standards konsistent in mehrere Repos tragen
+
+## Schnellstart
 
 ```bash
 node scripts/init-repo.js list-variants
-node scripts/init-repo.js new ../my-app --variant react --project-name my-app
-node scripts/init-repo.js apply ../existing-repo --variant python --dry-run
 node scripts/init-repo.js scan ../existing-repo
 node scripts/init-repo.js retrofit-plan ../existing-repo
 node scripts/init-repo.js retrofit-apply ../existing-repo
-node scripts/init-repo.js refactor-plan ../existing-repo
-node scripts/init-repo.js doctor ../my-app
+node scripts/init-repo.js doctor ../existing-repo
 ```
 
-## Dokumentation
+Für neue Repositories:
 
-- `docs/quick-reference.md` bietet kurze Copy/Paste-Beispiele fÃ¼r die tÃ¤gliche Nutzung
-- `docs/usage-guide.md` erklÃ¤rt die praktische Anwendung Schritt fÃ¼r Schritt
-- `docs/maintainer-guide.md` beschreibt Pflege, Struktur und Erweiterung des Toolkits
-- `docs/best-practices.md` dokumentiert die konzeptionellen HintergrÃ¼nde
+```bash
+node scripts/init-repo.js new ../my-app --variant react --project-name my-app --with-ci
+```
 
-## Wichtige Defaults
+## Varianten
 
-- `AGENTS.md` ist die fÃ¼hrende Instruktionsdatei.
-- JS/TS-Varianten verwenden standardmÃ¤ÃŸig `pnpm`.
-- Neue Repositories bekommen Governance + Skeleton, keine voll ausgebaute Business-Anwendung.
-- Bestehende Repositories laufen zuerst durch `scan` und `retrofit-plan`, bevor Ã„nderungen angewendet werden.
+Aktuell verfügbar:
+
+- `node`
+- `react`
+- `nextjs`
+- `php`
+- `python`
+- `wordpress-plugin`
+
+Wichtig:
+
+- `wordpress` ist **kein** gültiger Name
+- nutze `--variant wordpress-plugin`
+
+## Sicherheitsprinzip
+
+`agentum` ist absichtlich konservativ:
+
+- bestehende kritische Dateien werden nicht blind überschrieben
+- zuerst Analyse (`scan`), dann Planung (`retrofit-plan`), dann Anwendung (`retrofit-apply`)
+- Pläne enthalten Stale/Fresh-Logik über Repository-Fingerprints
+
+## Wichtige Dokumente
+
+- `docs/quick-reference.md` schnelle Copy/Paste-Befehle
+- `docs/usage-guide.md` vollständige Schritt-für-Schritt-Anleitung
+- `docs/disclaimer-and-safety.md` Hinweise, Grenzen, Haftungsausschluss
+- `docs/maintainer-guide.md` interne Pflege und Erweiterung
+
+## Haftung und Verantwortung
+
+Nutze das Tool verantwortungsvoll:
+
+- immer in einem Branch arbeiten
+- vor `retrofit-apply` den Plan lesen
+- bei Produktivsystemen zusätzlich manuell prüfen und testen
+
+Details dazu in `docs/disclaimer-and-safety.md`.

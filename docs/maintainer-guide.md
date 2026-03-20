@@ -1,5 +1,12 @@
 # Maintainer Guide
 
+## Dokumentation für Public Repos
+
+- `README.md` muss den sicheren Standard-Flow und den korrekten WordPress-Variant-Namen enthalten.
+- `docs/usage-guide.md` ist die ausführliche Anleitung für Endanwender.
+- `docs/quick-reference.md` ist die kurze Copy/Paste-Einstiegsseite.
+- `docs/disclaimer-and-safety.md` enthält Sicherheits- und Haftungshinweise und darf bei Public-Releases nicht fehlen.
+
 ## Architektur
 
 - `templates/base/` enthält alle gemeinsamen Dateien und Basisregeln.
@@ -22,3 +29,4 @@
 - Wenn ein Variant-Manifest neue Dateipfade referenziert, müssen sie auch im Dateisystem existieren.
 - Generator-Optionen immer erst in `templates/manifest.json` modellieren und danach im CLI auswerten.
 - Für Bestandsrepos zuerst den Analysepfad pflegen: `scan`, `retrofit-plan`, `retrofit-apply`, `refactor-plan`.
+- Bei Änderungen am UX-Flow immer auch `README.md`, `docs/usage-guide.md` und `docs/quick-reference.md` gemeinsam aktualisieren.

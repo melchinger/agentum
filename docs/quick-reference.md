@@ -1,6 +1,6 @@
 # Quick Reference
 
-Kurzübersicht für die häufigsten `agentum`-Befehle.
+Kurze Copy/Paste-Befehle f�r den Alltag.
 
 ## Varianten anzeigen
 
@@ -8,107 +8,65 @@ Kurzübersicht für die häufigsten `agentum`-Befehle.
 node scripts/init-repo.js list-variants
 ```
 
-## Neues Repository erzeugen
-
-### React
+## Neues Repo erzeugen
 
 ```bash
-node scripts/init-repo.js new ../my-react-app --variant react --project-name my-react-app
+node scripts/init-repo.js new ../my-app --variant react --project-name my-app --with-ci
 ```
 
-### Next.js mit CI
+WordPress-Plugin:
 
 ```bash
-node scripts/init-repo.js new ../my-next-app --variant nextjs --project-name my-next-app --with-ci
+node scripts/init-repo.js new ../aiLeadMagnet --variant wordpress-plugin --project-name aiLeadMagnet --with-ci
 ```
 
-### Python
-
-```bash
-node scripts/init-repo.js new ../my-python-app --variant python --project-name my-python-app
-```
-
-## Leeres Verzeichnis befüllen
-
-```bash
-node scripts/init-repo.js apply ../empty-folder --variant node --dry-run
-```
-
-## Bestehendes Repository analysieren
+## Bestehendes Repo sicher nachr�sten
 
 ```bash
 node scripts/init-repo.js scan ../legacy-app
-```
-
-## Sicheren Retrofit planen
-
-```bash
 node scripts/init-repo.js retrofit-plan ../legacy-app
-```
-
-### Mit expliziter Variante
-
-```bash
-node scripts/init-repo.js retrofit-plan ../legacy-app --variant react
-```
-
-### Mit CI und Mirror-Dateien
-
-```bash
-node scripts/init-repo.js retrofit-plan ../legacy-app --with-ci --with-mirror-files
-```
-
-## Retrofit anwenden
-
-```bash
 node scripts/init-repo.js retrofit-apply ../legacy-app
-```
-
-## Refactoring-Plan erzeugen
-
-```bash
 node scripts/init-repo.js refactor-plan ../legacy-app
-```
-
-## Repository prüfen
-
-```bash
 node scripts/init-repo.js doctor ../legacy-app
 ```
 
-## JSON-Ausgabe für Tools / CI
-
-### Scan
+## JSON f�r CI/Automationen
 
 ```bash
 node scripts/init-repo.js scan ../legacy-app --json
-```
-
-### Retrofit-Plan
-
-```bash
 node scripts/init-repo.js retrofit-plan ../legacy-app --json
-```
-
-### Doctor
-
-```bash
+node scripts/init-repo.js refactor-plan ../legacy-app --json
 node scripts/init-repo.js doctor ../legacy-app --json
 ```
 
-## Empfohlener Standard-Flow für Bestandsrepos
+## H�ufige Stolpersteine
+
+### Falscher Variant-Name
+
+Nicht:
 
 ```bash
-node scripts/init-repo.js scan ../legacy-app
-node scripts/init-repo.js retrofit-plan ../legacy-app
-node scripts/init-repo.js retrofit-apply ../legacy-app
-node scripts/init-repo.js refactor-plan ../legacy-app
-node scripts/init-repo.js doctor ../legacy-app
+--variant wordpress
 ```
 
-## Wichtige Hinweise
+Richtig:
 
-- Für bestehende Projekte erst `scan`, dann `retrofit-plan`, nicht direkt `apply`.
-- `retrofit-apply` arbeitet nur auf Basis eines vorhandenen Plans.
-- `doctor` kann vor dem Retrofit bei Bestandsrepos absichtlich noch Fehler melden.
-- Ausführliche Erklärung: `docs/usage-guide.md`
+```bash
+--variant wordpress-plugin
+```
+
+### Stale Plan
+
+Wenn `retrofit-apply` wegen stale Plan stoppt:
+
+```bash
+node scripts/init-repo.js retrofit-plan ../legacy-app
+```
+
+## Sicherheits-Reminder
+
+- zuerst planen, dann anwenden
+- in Branch arbeiten
+- `manualReviewItems` immer lesen
+
+Mehr Kontext: `docs/usage-guide.md` und `docs/disclaimer-and-safety.md`.
