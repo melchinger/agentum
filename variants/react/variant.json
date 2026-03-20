@@ -1,0 +1,35 @@
+{
+  "name": "react",
+  "description": "React SPA skeleton with routing, services, hooks, and client/server state boundaries.",
+  "runtime": "React + Vite + TypeScript",
+  "packageManagers": ["pnpm", "npm", "yarn"],
+  "directories": [
+    "src/components",
+    "src/hooks",
+    "src/services",
+    "src/routes",
+    "src/types",
+    "tests"
+  ],
+  "requiredFiles": [
+    "package.json",
+    "tsconfig.json",
+    "vite.config.ts",
+    "src/main.tsx",
+    "src/App.tsx",
+    "index.html"
+  ],
+  "commands": [
+    "install: {{PACKAGE_MANAGER}} install",
+    "dev: {{PACKAGE_MANAGER}} run dev",
+    "build: {{PACKAGE_MANAGER}} run build",
+    "test: {{PACKAGE_MANAGER}} run test"
+  ],
+  "ciSetupCommand": "corepack enable",
+  "ciTestCommand": "{{PACKAGE_MANAGER}} run test",
+  "markers": {
+    "files": ["package.json", "vite.config.ts"],
+    "packageJsonIndicators": ["react", "vite"],
+    "disallowFiles": ["next.config.js", "next.config.ts", "composer.json", "pyproject.toml"]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "node",
+  "description": "TypeScript Node.js service or CLI skeleton with layered architecture guidance.",
+  "runtime": "Node.js + TypeScript",
+  "packageManagers": ["pnpm", "npm", "yarn"],
+  "directories": [
+    "src/domain",
+    "src/application",
+    "src/infrastructure",
+    "src/interfaces",
+    "tests"
+  ],
+  "requiredFiles": [
+    "package.json",
+    "tsconfig.json",
+    "src/index.ts"
+  ],
+  "commands": [
+    "install: {{PACKAGE_MANAGER}} install",
+    "dev: {{PACKAGE_MANAGER}} run dev",
+    "build: {{PACKAGE_MANAGER}} run build",
+    "test: {{PACKAGE_MANAGER}} run test"
+  ],
+  "ciSetupCommand": "corepack enable",
+  "ciTestCommand": "{{PACKAGE_MANAGER}} run test",
+  "markers": {
+    "files": ["package.json", "tsconfig.json"],
+    "packageJsonIndicators": ["typescript"],
+    "disallowFiles": ["vite.config.ts", "next.config.js", "next.config.ts", "composer.json", "pyproject.toml"]
+  }
+}

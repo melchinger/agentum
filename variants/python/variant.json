@@ -1,0 +1,25 @@
+{
+  "name": "python",
+  "description": "Python application skeleton with typed package layout and clear domain boundaries.",
+  "runtime": "Python 3.12+",
+  "packageManagers": ["uv", "pip"],
+  "directories": [
+    "src/{{PYTHON_PACKAGE}}",
+    "tests"
+  ],
+  "requiredFiles": [
+    "pyproject.toml",
+    "src/{{PYTHON_PACKAGE}}/__init__.py",
+    "src/{{PYTHON_PACKAGE}}/main.py"
+  ],
+  "commands": [
+    "install: uv sync",
+    "test: python -m pytest"
+  ],
+  "ciSetupCommand": "python -m pip install -e .",
+  "ciTestCommand": "python -m pytest",
+  "markers": {
+    "files": ["pyproject.toml"],
+    "disallowFiles": ["composer.json"]
+  }
+}

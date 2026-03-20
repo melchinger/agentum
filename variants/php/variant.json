@@ -1,0 +1,27 @@
+{
+  "name": "php",
+  "description": "Modern PHP application skeleton with PSR-oriented structure and service boundaries.",
+  "runtime": "PHP 8.2+",
+  "packageManagers": ["composer"],
+  "directories": [
+    "src/Application",
+    "src/Domain",
+    "src/Infrastructure",
+    "public",
+    "tests"
+  ],
+  "requiredFiles": [
+    "composer.json",
+    "public/index.php"
+  ],
+  "commands": [
+    "install: composer install",
+    "test: composer test"
+  ],
+  "ciSetupCommand": "composer install --no-interaction --no-progress",
+  "ciTestCommand": "composer test",
+  "markers": {
+    "files": ["composer.json"],
+    "disallowFiles": ["package.json", "pyproject.toml"]
+  }
+}

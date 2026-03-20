@@ -1,0 +1,35 @@
+{
+  "defaultJsPackageManager": "pnpm",
+  "metadataFile": ".agentum-template.json",
+  "mirrorFiles": [
+    {
+      "path": "CLAUDE.md",
+      "header": "> Derived from `AGENTS.md`. Edit `AGENTS.md` first.\n\n"
+    },
+    {
+      "path": ".github/copilot-instructions.md",
+      "header": "> Derived from `AGENTS.md`. Edit `AGENTS.md` first.\n\n"
+    }
+  ],
+  "requiredBaseFiles": [
+    "AGENTS.md",
+    "README.md",
+    ".editorconfig",
+    ".gitignore",
+    ".env.example",
+    "docs/security-checklist.md",
+    "docs/review-checklist.md"
+  ],
+  "interactiveDefaults": {
+    "withCi": false,
+    "withMirrorFiles": false
+  },
+  "retrofit": {
+    "planDir": ".agentum",
+    "planJson": ".agentum/retrofit-plan.json",
+    "planMarkdown": ".agentum/retrofit-plan.md",
+    "refactorMarkdown": ".agentum/refactor-plan.md",
+    "refactorJson": ".agentum/refactor-plan.json",
+    "largeFileLines": 250
+  }
+}

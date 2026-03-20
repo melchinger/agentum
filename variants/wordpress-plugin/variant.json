@@ -1,0 +1,30 @@
+{
+  "name": "wordpress-plugin",
+  "description": "WordPress plugin skeleton with thin includes adapters and layered core services.",
+  "runtime": "PHP 8.2+ WordPress Plugin",
+  "packageManagers": ["composer"],
+  "directories": [
+    "includes",
+    "src/Domain",
+    "src/Application",
+    "src/Infrastructure",
+    "public",
+    "tests"
+  ],
+  "requiredFiles": [
+    "composer.json",
+    "wordpress-plugin.php",
+    "includes/bootstrap.php"
+  ],
+  "commands": [
+    "install: composer install",
+    "test: composer test"
+  ],
+  "ciSetupCommand": "composer install --no-interaction --no-progress",
+  "ciTestCommand": "composer test",
+  "markers": {
+    "files": ["composer.json", "includes"],
+    "contentPatterns": ["wordpress-plugin.php::Plugin Name:", "includes/bootstrap.php::add_action\\s*\\(|add_filter\\s*\\("],
+    "disallowFiles": ["pyproject.toml"]
+  }
+}

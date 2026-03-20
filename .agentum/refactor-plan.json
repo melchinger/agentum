@@ -1,0 +1,98 @@
+{
+  "generatedAt": "2026-03-17T10:38:37.459Z",
+  "toolVersion": "0.1.0",
+  "repoFingerprint": "ee80a23264b7a6f528b011b1b3d670f78f2b63d5ba0b99bda3115797bab61f87",
+  "variant": "nextjs",
+  "projectStyle": "generic",
+  "confidence": 0.35,
+  "architectureTarget": {
+    "description": "Align source code with the selected stack's layered structure.",
+    "layers": [
+      "src/app",
+      "src/components",
+      "src/lib",
+      "tests"
+    ]
+  },
+  "hotspots": [
+    {
+      "file": "scripts/init-repo.js",
+      "reasons": [
+        "large-file:358"
+      ],
+      "lines": 358
+    },
+    {
+      "file": "scripts/lib/repo-generator.js",
+      "reasons": [
+        "large-file:278"
+      ],
+      "lines": 278
+    },
+    {
+      "file": "scripts/lib/retrofit-engine.js",
+      "reasons": [
+        "large-file:837"
+      ],
+      "lines": 837
+    }
+  ],
+  "adapterFiles": [],
+  "serviceExtractionCandidates": [
+    {
+      "file": "scripts/init-repo.js",
+      "currentRole": "mixed-responsibility",
+      "targetRole": "extract-service-or-use-case",
+      "recommendedExtraction": "Split data access, orchestration, and presentation into separate files."
+    },
+    {
+      "file": "scripts/lib/repo-generator.js",
+      "currentRole": "mixed-responsibility",
+      "targetRole": "extract-service-or-use-case",
+      "recommendedExtraction": "Split data access, orchestration, and presentation into separate files."
+    },
+    {
+      "file": "scripts/lib/retrofit-engine.js",
+      "currentRole": "mixed-responsibility",
+      "targetRole": "extract-service-or-use-case",
+      "recommendedExtraction": "Split data access, orchestration, and presentation into separate files."
+    }
+  ],
+  "fileMoveSuggestions": [
+    {
+      "target": "src/app",
+      "reason": "Expected by selected architecture but currently missing."
+    },
+    {
+      "target": "src/components",
+      "reason": "Expected by selected architecture but currently missing."
+    },
+    {
+      "target": "src/lib",
+      "reason": "Expected by selected architecture but currently missing."
+    }
+  ],
+  "validationSteps": [
+    "Regenerate or review retrofit plan if governance files changed.",
+    "Refactor one hotspot at a time and run the most specific project validation after each step.",
+    "Run `init-repo doctor <target-dir>` after structural changes."
+  ],
+  "doNotChangeYet": [
+    "AGENTS.md"
+  ],
+  "missingDirs": [
+    "src/app",
+    "src/components",
+    "src/lib"
+  ],
+  "steps": [
+    "Stabilize missing governance files first.",
+    "Introduce target structure for `nextjs`: src/app, src/components, src/lib.",
+    "Refactor scripts/init-repo.js: Split data access, orchestration, and presentation into separate files.",
+    "Refactor scripts/lib/repo-generator.js: Split data access, orchestration, and presentation into separate files.",
+    "Refactor scripts/lib/retrofit-engine.js: Split data access, orchestration, and presentation into separate files.",
+    "Resolve manual-review items before changing existing CI or instruction files.",
+    "Finish with `init-repo doctor` and project-specific tests/build commands."
+  ],
+  "markdown": "# Refactor Plan\n\n- Variant: `nextjs`\n- Project style: `generic`\n- Confidence: 0.35\n\n## Target Architecture\n\n- Align source code with the selected stack's layered structure.\n- src/app\n- src/components\n- src/lib\n- tests\n\n## Hotspots\n\n- scripts/init-repo.js (large-file:358)\n- scripts/lib/repo-generator.js (large-file:278)\n- scripts/lib/retrofit-engine.js (large-file:837)\n\n## Extraction Candidates\n\n- scripts/init-repo.js: Split data access, orchestration, and presentation into separate files.\n- scripts/lib/repo-generator.js: Split data access, orchestration, and presentation into separate files.\n- scripts/lib/retrofit-engine.js: Split data access, orchestration, and presentation into separate files.\n\n## Prioritized Steps\n\n- Stabilize missing governance files first.\n- Introduce target structure for `nextjs`: src/app, src/components, src/lib.\n- Refactor scripts/init-repo.js: Split data access, orchestration, and presentation into separate files.\n- Refactor scripts/lib/repo-generator.js: Split data access, orchestration, and presentation into separate files.\n- Refactor scripts/lib/retrofit-engine.js: Split data access, orchestration, and presentation into separate files.\n- Resolve manual-review items before changing existing CI or instruction files.\n- Finish with `init-repo doctor` and project-specific tests/build commands.\n\n## Do Not Change Yet\n\n- AGENTS.md\n\n## Validation\n\n- Regenerate or review retrofit plan if governance files changed.\n- Refactor one hotspot at a time and run the most specific project validation after each step.\n- Run `init-repo doctor <target-dir>` after structural changes.\n"
+}

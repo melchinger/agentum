@@ -1,0 +1,16 @@
+{
+  "name": "agentum",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Template and generator repository for professional AI-agent project setups.",
+  "bin": {
+    "init-repo": "./scripts/init-repo.js"
+  },
+  "scripts": {
+    "test": "node tests/run-tests.js",
+    "init-repo": "node ./scripts/init-repo.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
