@@ -1,0 +1,24 @@
+{
+  "name": "python",
+  "description": "Python runtime with package-based source layout and typed boundaries.",
+  "language": "python",
+  "packageManagers": ["uv", "pip"],
+  "directories": [
+    "src/{{PYTHON_PACKAGE}}",
+    "tests"
+  ],
+  "requiredFiles": [
+    "pyproject.toml",
+    "src/{{PYTHON_PACKAGE}}/__init__.py",
+    "src/{{PYTHON_PACKAGE}}/main.py"
+  ],
+  "commands": [
+    "install: uv sync",
+    "test: python -m pytest"
+  ],
+  "variables": ["PYTHON_PACKAGE"],
+  "detect": {
+    "files": ["pyproject.toml"],
+    "contentPatterns": ["pyproject.toml::\\[project\\]"]
+  }
+}

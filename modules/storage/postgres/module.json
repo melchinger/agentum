@@ -1,0 +1,9 @@
+{
+  "name": "postgres",
+  "category": "storage",
+  "description": "PostgreSQL as the primary production database.",
+  "compatibleRuntimes": ["python", "node"],
+  "env": [
+    "DATABASE_URL=postgresql://app:app@localhost:5432/{{PROJECT_SLUG}}"
+  ]
+}

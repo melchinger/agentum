@@ -1,0 +1,12 @@
+{
+  "name": "htmx",
+  "description": "Server-rendered HTML with HTMX-style progressive enhancement boundaries.",
+  "category": "frontend",
+  "compatibleVariants": ["python", "php"],
+  "directories": [
+    "templates"
+  ],
+  "requiredFiles": [
+    "templates/index.html"
+  ]
+}

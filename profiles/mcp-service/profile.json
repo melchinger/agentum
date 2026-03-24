@@ -1,0 +1,8 @@
+{
+  "name": "mcp-service",
+  "description": "Tool-serving backend with typed integration boundaries.",
+  "recommendedRuntime": "python",
+  "defaultModules": ["mcp-python"],
+  "recommendedModules": ["fastapi", "postgres"],
+  "requiredPolicies": ["security-baseline"]
+}

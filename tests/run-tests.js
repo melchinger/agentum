@@ -6,8 +6,18 @@ const {
   applyOperations,
   collectOperations,
   doctor,
+  listStacks,
   listVariants
 } = require("../scripts/lib/repo-generator");
+const {
+  collectCompositionOperations,
+  compositionDoctor,
+  listModules,
+  listPolicies,
+  listProfiles,
+  listRuntimes,
+  resolveComposition
+} = require("../scripts/lib/composition-catalog");
 const {
   applyRetrofitPlan,
   buildRefactorPlan,
@@ -17,6 +27,7 @@ const {
   writeRetrofitPlan
 } = require("../scripts/lib/retrofit-engine");
 const { run: runCli } = require("../scripts/init-repo");
+const { validateManifestCollection } = require("../scripts/validate-manifests");
 
 const repoRoot = path.resolve(__dirname, "..");
 const pendingAsyncTests = [];
@@ -87,6 +98,46 @@ runTest("lists all supported variants", () => {
   assert.deepEqual(variants, ["nextjs", "node", "php", "python", "react", "wordpress-plugin"]);
 });
 
+runTest("validates manifest collections", () => {
+  const errors = validateManifestCollection(repoRoot);
+  assert.deepEqual(errors, []);
+});
+
+runTest("lists composition catalog entries", () => {
+  assert.ok(listProfiles(repoRoot).some((entry) => entry.name === "saas-web-app"));
+  assert.ok(listRuntimes(repoRoot).some((entry) => entry.name === "python"));
+  assert.ok(listModules(repoRoot, { runtime: "rust" }).some((entry) => entry.name === "tauri"));
+  assert.ok(listPolicies(repoRoot).some((entry) => entry.name === "security-baseline"));
+});
+
+runTest("resolves composition defaults and rules", () => {
+  const composition = resolveComposition(repoRoot, {
+    profile: "desktop-app"
+  });
+
+  assert.equal(composition.runtime.manifest.name, "rust");
+  assert.deepEqual(
+    composition.modules.map((entry) => entry.manifest.name),
+    ["tauri", "react", "sqlite"]
+  );
+  assert.ok(composition.errors.length === 0);
+});
+
+runTest("lists stack modules for the python variant", () => {
+  const stacks = listStacks(repoRoot, "python").map((entry) => entry.name);
+  assert.deepEqual(stacks, [
+    "fastapi",
+    "single-container",
+    "playwright-pdf",
+    "htmx",
+    "mcp-python",
+    "alembic",
+    "liquibase",
+    "postgres",
+    "sqlite"
+  ]);
+});
+
 runTest("generates a react repository with agents metadata mirrors and ci", () => {
   withTempDir((tempDir) => {
     const targetDir = path.join(tempDir, "react-app");
@@ -122,6 +173,69 @@ runTest("generates a react repository with agents metadata mirrors and ci", () =
   });
 });
 
+runTest("generates a composed python repository from profile runtime modules and policies", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "saas-python");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SaaS Python",
+      profile: "saas-web-app",
+      runtime: "python",
+      modules: ["htmx", "mcp-python", "playwright-pdf", "single-container"],
+      policies: ["mirror-instructions"],
+      withCi: true
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "saas_python", "interfaces", "http", "app.py")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "saas_python", "interfaces", "mcp", "__init__.py")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "templates", "index.html")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "templates", "pdf", "README.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "migrations", "README.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "Dockerfile")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "CLAUDE.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, ".github", "workflows", "ci.yml")), true);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.equal(metadata.profile, "saas-web-app");
+    assert.equal(metadata.runtime, "python");
+    assert.deepEqual(metadata.policies, ["security-baseline", "ci", "mirror-instructions"]);
+
+    const envExample = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(envExample, /DATABASE_URL=postgresql:\/\/app:app@localhost:5432\/saas-python/);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+    assert.equal(doctorResult.profile, "saas-web-app");
+    assert.equal(doctorResult.runtime, "python");
+  });
+});
+
+runTest("generates a composed tauri desktop repository", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "tauri-desktop");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Desktop Hub",
+      profile: "desktop-app",
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    assert.equal(fs.existsSync(path.join(targetDir, "Cargo.toml")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "main.rs")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "ui", "App.tsx")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src-tauri", "tauri.conf.json")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src-tauri", "src", "commands", "mod.rs")), true);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.equal(metadata.runtime, "rust");
+    assert.deepEqual(metadata.modules, ["tauri", "react", "sqlite"]);
+  });
+});
+
 runTest("generates variant specific python package paths", () => {
   withTempDir((tempDir) => {
     const targetDir = path.join(tempDir, "python-app");
@@ -129,6 +243,7 @@ runTest("generates variant specific python package paths", () => {
       targetDir,
       variant: "python",
       projectName: "Data Tools",
+      stacks: ["fastapi", "postgres", "alembic", "mcp-python", "playwright-pdf", "single-container"],
       withCi: false,
       withMirrorFiles: false,
       packageManager: "uv"
@@ -145,6 +260,23 @@ runTest("generates variant specific python package paths", () => {
       true
     );
     assert.equal(
+      fs.existsSync(path.join(targetDir, "src", "data_tools", "interfaces", "http", "app.py")),
+      true
+    );
+    assert.equal(
+      fs.existsSync(path.join(targetDir, "src", "data_tools", "interfaces", "mcp", "__init__.py")),
+      true
+    );
+    assert.equal(
+      fs.existsSync(path.join(targetDir, "migrations", "README.md")),
+      true
+    );
+    assert.equal(
+      fs.existsSync(path.join(targetDir, "templates", "pdf", "README.md")),
+      true
+    );
+    assert.equal(fs.existsSync(path.join(targetDir, "Dockerfile")), true);
+    assert.equal(
       fs.existsSync(path.join(targetDir, ".github", "workflows", "ci.yml")),
       false
     );
@@ -152,7 +284,39 @@ runTest("generates variant specific python package paths", () => {
 
     const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
     assert.match(agents, /Repository type: `python`/);
+    assert.match(agents, /Selected stack modules:/);
     assert.match(agents, /Python Overlay/);
+    assert.match(agents, /Stack Module: FastAPI/);
+    assert.match(agents, /`serve`: `uv run fastapi dev src\/data_tools\/interfaces\/http\/app.py`/);
+
+    const metadata = JSON.parse(
+      fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8")
+    );
+    assert.deepEqual(metadata.stacks, [
+      "fastapi",
+      "single-container",
+      "playwright-pdf",
+      "mcp-python",
+      "alembic",
+      "postgres"
+    ]);
+
+    const envExample = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(envExample, /DATABASE_URL=postgresql:\/\/app:app@localhost:5432\/data-tools/);
+
+    const readme = fs.readFileSync(path.join(targetDir, "README.md"), "utf8");
+    assert.match(readme, /Selected stack modules:/);
+
+    const doctorResult = doctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+    assert.deepEqual(doctorResult.stacks, [
+      "fastapi",
+      "single-container",
+      "playwright-pdf",
+      "mcp-python",
+      "alembic",
+      "postgres"
+    ]);
   });
 });
 
@@ -165,6 +329,7 @@ runTest("doctor reports missing files", () => {
       JSON.stringify({
         projectName: "Broken",
         variant: "node",
+        stacks: [],
         packageManager: "pnpm",
         withCi: false,
         withMirrorFiles: false
@@ -373,6 +538,7 @@ runAsyncTest("scan doctor and retrofit-plan support json output", async () => {
         assert.equal(scanJson.detectedVariant, "react");
         assert.ok(Array.isArray(scanJson.presentFiles));
         assert.ok(scanJson.repoFingerprint);
+        assert.deepEqual(scanJson.selectedStacks, []);
       })
       .then(() => runCli(["retrofit-plan", targetDir, "--json"], retrofitIo))
       .then(() => {
@@ -390,6 +556,128 @@ runAsyncTest("scan doctor and retrofit-plan support json output", async () => {
         assert.equal(doctorJson.ok, true);
         assert.equal(doctorJson.variant, "react");
         assert.ok(Array.isArray(doctorJson.results));
+        assert.deepEqual(doctorJson.stacks, []);
+      });
+  });
+});
+
+runAsyncTest("cli lists stacks and generates python stack composition", async () => {
+  return withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "stacked-python");
+    const listIo = createIoCapture();
+    const newIo = createIoCapture();
+    const doctorIo = createIoCapture();
+
+    return Promise.resolve()
+      .then(() => runCli(["list-stacks", "--variant", "python"], listIo))
+      .then(() => {
+        const output = listIo.read();
+        assert.match(output, /backend\tfastapi\t/);
+        assert.match(output, /storage\tpostgres\t/);
+      })
+      .then(() =>
+        runCli(
+          [
+            "new",
+            targetDir,
+            "--variant",
+            "python",
+            "--project-name",
+            "Stacked Python",
+            "--package-manager",
+            "uv",
+            "--stacks",
+            "fastapi,htmx,postgres,alembic,mcp-python"
+          ],
+          newIo
+        )
+      )
+      .then(() => {
+        assert.equal(fs.existsSync(path.join(targetDir, "templates", "index.html")), true);
+      })
+      .then(() => runCli(["doctor", targetDir, "--json"], doctorIo))
+      .then(() => {
+        const doctorJson = JSON.parse(doctorIo.read());
+        assert.deepEqual(doctorJson.stacks, ["fastapi", "htmx", "mcp-python", "alembic", "postgres"]);
+      });
+  });
+});
+
+runAsyncTest("cli validates explains and generates composed projects", async () => {
+  return withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "composed-cli");
+    const validateIo = createIoCapture();
+    const explainIo = createIoCapture();
+    const newIo = createIoCapture();
+    const doctorIo = createIoCapture();
+
+    return Promise.resolve()
+      .then(() =>
+        runCli(
+          [
+            "validate-stack",
+            "--profile",
+            "saas-web-app",
+            "--runtime",
+            "python",
+            "--modules",
+            "htmx,mcp-python,playwright-pdf,single-container",
+            "--policies",
+            "mirror-instructions",
+            "--with-ci",
+            "--json"
+          ],
+          validateIo
+        )
+      )
+      .then(() => {
+        const payload = JSON.parse(validateIo.read());
+        assert.equal(payload.ok, true);
+        assert.equal(payload.runtime, "python");
+        assert.ok(payload.modules.includes("postgres"));
+      })
+      .then(() =>
+        runCli(
+          [
+            "explain-stack",
+            "--profile",
+            "desktop-app",
+            "--json"
+          ],
+          explainIo
+        )
+      )
+      .then(() => {
+        const payload = JSON.parse(explainIo.read());
+        assert.equal(payload.runtime, "rust");
+        assert.deepEqual(payload.modules, ["tauri", "react", "sqlite"]);
+      })
+      .then(() =>
+        runCli(
+          [
+            "new",
+            targetDir,
+            "--profile",
+            "saas-web-app",
+            "--runtime",
+            "python",
+            "--project-name",
+            "Composed CLI",
+            "--modules",
+            "htmx,mcp-python,playwright-pdf,single-container",
+            "--policies",
+            "mirror-instructions",
+            "--with-ci"
+          ],
+          newIo
+        )
+      )
+      .then(() => runCli(["doctor", targetDir, "--json"], doctorIo))
+      .then(() => {
+        const payload = JSON.parse(doctorIo.read());
+        assert.equal(payload.profile, "saas-web-app");
+        assert.equal(payload.runtime, "python");
+        assert.ok(payload.modules.includes("fastapi"));
       });
   });
 });

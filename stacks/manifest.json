@@ -1,0 +1,32 @@
+{
+  "categories": [
+    {
+      "name": "backend",
+      "description": "Application runtime, transport, and request handling."
+    },
+    {
+      "name": "frontend",
+      "description": "Presentation layer, templates, and progressive enhancement."
+    },
+    {
+      "name": "storage",
+      "description": "Primary persistence engine and data access assumptions."
+    },
+    {
+      "name": "migrations",
+      "description": "Schema and database migration workflow."
+    },
+    {
+      "name": "document",
+      "description": "Document rendering and export pipeline."
+    },
+    {
+      "name": "integration",
+      "description": "External protocol or tool integration surface."
+    },
+    {
+      "name": "deploy",
+      "description": "Deployment packaging and runtime topology."
+    }
+  ]
+}

@@ -10,9 +10,21 @@ const {
   collectOperations,
   describeOperations,
   doctor,
+  listStacks,
   listVariants,
-  loadManifest
+  loadManifest,
+  normalizeStackSelection
 } = require("./lib/repo-generator");
+const {
+  collectCompositionOperations,
+  describeComposition,
+  listModules,
+  listPolicies,
+  listProfiles,
+  listRuntimes,
+  normalizeSelection,
+  resolveComposition
+} = require("./lib/composition-catalog");
 const {
   applyRetrofitPlan,
   buildRefactorPlan,
@@ -100,6 +112,11 @@ async function promptForMissing(command, positionals, flags, io) {
         )).trim() || suggested;
     }
 
+    const stacksInput =
+      flags.stacks ||
+      (await rl.question("Stack modules (comma-separated, optional): ")).trim();
+    const stacks = normalizeStackSelection(stacksInput);
+
     const withCi =
       typeof flags["with-ci"] === "boolean"
         ? flags["with-ci"]
@@ -131,6 +148,7 @@ async function promptForMissing(command, positionals, flags, io) {
       variant,
       projectName,
       packageManager,
+      stacks,
       withCi,
       withMirrorFiles,
       dryRun: Boolean(flags["dry-run"]),
@@ -144,10 +162,17 @@ async function promptForMissing(command, positionals, flags, io) {
 function printUsage() {
   processStdout.write(`Usage:
   init-repo list-variants
-  init-repo new <target-dir> [--variant <name>] [--project-name <name>] [--package-manager <pm>] [--with-ci] [--with-mirror-files] [--dry-run] [--force]
-  init-repo apply <target-dir> --variant <name> [--project-name <name>] [--package-manager <pm>] [--with-ci] [--with-mirror-files] [--dry-run] [--force]
+  init-repo list-stacks [--variant <name>]
+  init-repo list-profiles
+  init-repo list-runtimes
+  init-repo list-modules [--category <name>] [--runtime <name>]
+  init-repo list-policies
+  init-repo validate-stack [--profile <name>] [--runtime <name>] [--modules <a,b>] [--policies <a,b>]
+  init-repo explain-stack [--profile <name>] [--runtime <name>] [--modules <a,b>] [--policies <a,b>]
+  init-repo new <target-dir> [--variant <name>] [--project-name <name>] [--package-manager <pm>] [--stacks <a,b>] [--with-ci] [--with-mirror-files] [--dry-run] [--force]
+  init-repo apply <target-dir> --variant <name> [--project-name <name>] [--package-manager <pm>] [--stacks <a,b>] [--with-ci] [--with-mirror-files] [--dry-run] [--force]
   init-repo scan <target-dir> [--variant <name>] [--package-manager <pm>]
-  init-repo retrofit-plan <target-dir> [--variant <name>] [--project-name <name>] [--package-manager <pm>] [--with-ci] [--with-mirror-files]
+  init-repo retrofit-plan <target-dir> [--variant <name>] [--project-name <name>] [--package-manager <pm>] [--stacks <a,b>] [--with-ci] [--with-mirror-files]
   init-repo retrofit-apply <target-dir>
   init-repo refactor-plan <target-dir> [--variant <name>] [--project-name <name>]
   init-repo doctor <target-dir>
@@ -171,6 +196,87 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
     return;
   }
 
+  if (command === "list-stacks") {
+    for (const stack of listStacks(repoRoot, flags.variant)) {
+      stdout.write(`${stack.category}\t${stack.name}\t${stack.description}\n`);
+    }
+    return;
+  }
+
+  if (command === "list-profiles") {
+    for (const profile of listProfiles(repoRoot)) {
+      stdout.write(`${profile.name}\t${profile.description}\n`);
+    }
+    return;
+  }
+
+  if (command === "list-runtimes") {
+    for (const runtime of listRuntimes(repoRoot)) {
+      stdout.write(`${runtime.name}\t${runtime.description}\n`);
+    }
+    return;
+  }
+
+  if (command === "list-modules") {
+    for (const moduleEntry of listModules(repoRoot, {
+      category: flags.category,
+      runtime: flags.runtime
+    })) {
+      stdout.write(`${moduleEntry.category}\t${moduleEntry.name}\t${moduleEntry.description}\n`);
+    }
+    return;
+  }
+
+  if (command === "list-policies") {
+    for (const policy of listPolicies(repoRoot)) {
+      stdout.write(`${policy.name}\t${policy.description}\n`);
+    }
+    return;
+  }
+
+  if (command === "validate-stack" || command === "explain-stack") {
+    const composition = resolveComposition(repoRoot, {
+      profile: flags.profile,
+      runtime: flags.runtime,
+      modules: normalizeSelection(flags.modules),
+      policies: normalizeSelection(flags.policies),
+      withCi: Boolean(flags["with-ci"]),
+      withMirrorFiles: Boolean(flags["with-mirror-files"])
+    });
+    if (command === "validate-stack") {
+      emitOutput(stdout, flags, {
+        ok: composition.errors.length === 0,
+        profile: composition.profile?.manifest.name || null,
+        runtime: composition.runtime.manifest.name,
+        modules: composition.modules.map((entry) => entry.manifest.name),
+        policies: composition.policies.map((entry) => entry.manifest.name),
+        warnings: composition.warnings,
+        info: composition.info,
+        errors: composition.errors
+      }, () => {
+        stdout.write(`${composition.errors.length === 0 ? "VALID" : "INVALID"}\n`);
+        stdout.write(`${describeComposition(composition)}\n`);
+      });
+      if (composition.errors.length > 0) {
+        process.exitCode = 1;
+      }
+      return;
+    }
+
+    emitOutput(stdout, flags, {
+      profile: composition.profile?.manifest.name || null,
+      runtime: composition.runtime.manifest.name,
+      modules: composition.modules.map((entry) => entry.manifest.name),
+      policies: composition.policies.map((entry) => entry.manifest.name),
+      warnings: composition.warnings,
+      info: composition.info,
+      errors: composition.errors
+    }, () => {
+      stdout.write(`${describeComposition(composition)}\n`);
+    });
+    return;
+  }
+
   if (command === "doctor") {
     const targetDir = positionals[0];
     if (!targetDir) {
@@ -188,6 +294,7 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
 
     emitOutput(stdout, flags, result, () => {
       stdout.write(`Variant: ${result.variant}\n`);
+      stdout.write(`Selected stacks: ${(result.stacks || []).join(", ") || "none"}\n`);
       for (const entry of result.results) {
         stdout.write(`${entry.ok ? "OK" : "MISSING"}\t${entry.file}\n`);
       }
@@ -213,6 +320,11 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
       stdout.write(`Selected variant: ${result.selectedVariant || "none"}\n`);
       stdout.write(`Confidence: ${result.confidence}\n`);
       stdout.write(`Package manager: ${result.packageManager || "unknown"}\n`);
+      stdout.write(`Selected profile: ${result.selectedProfile || "none"}\n`);
+      stdout.write(`Selected runtime: ${result.selectedRuntime || "none"}\n`);
+      stdout.write(`Selected modules: ${result.selectedModules.join(", ") || "none"}\n`);
+      stdout.write(`Selected policies: ${result.selectedPolicies.join(", ") || "none"}\n`);
+      stdout.write(`Selected stacks: ${(result.selectedStacks || []).join(", ") || "none"}\n`);
       stdout.write(`Markers: ${result.repoMarkers.join(", ") || "none"}\n`);
       stdout.write(
         `Missing governance: ${result.missingGovernance.join(", ") || "none"}\n`
@@ -239,6 +351,7 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
       variant: flags.variant,
       projectName: flags["project-name"],
       packageManager: flags["package-manager"],
+      stacks: normalizeStackSelection(flags.stacks),
       withCi: Boolean(flags["with-ci"]),
       withMirrorFiles: Boolean(flags["with-mirror-files"])
     });
@@ -314,6 +427,7 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
   }
 
   const shouldPrompt = stdin.isTTY && (!positionals[0] || !flags.variant);
+  const useComposition = Boolean(flags.runtime || flags.profile || flags.modules || flags.policies);
   const options = shouldPrompt
     ? await promptForMissing(command, positionals, flags, io)
     : {
@@ -322,6 +436,7 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
         variant: flags.variant,
         projectName: flags["project-name"] || path.basename(path.resolve(positionals[0])),
         packageManager: flags["package-manager"],
+        stacks: normalizeStackSelection(flags.stacks),
         withCi: Boolean(flags["with-ci"]),
         withMirrorFiles: Boolean(flags["with-mirror-files"]),
         dryRun: Boolean(flags["dry-run"]),
@@ -329,12 +444,32 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
       };
 
   assertTargetState(options.targetDir, command, options.force);
-  const result = collectOperations(repoRoot, options);
-  const summary = describeOperations(result.operations, process.cwd());
+  const result = useComposition
+    ? collectCompositionOperations(repoRoot, {
+        targetDir: options.targetDir,
+        projectName: options.projectName,
+        profile: flags.profile,
+        runtime: flags.runtime,
+        modules: normalizeSelection(flags.modules),
+        policies: normalizeSelection(flags.policies),
+        packageManager: flags["package-manager"],
+        withCi: Boolean(flags["with-ci"]),
+        withMirrorFiles: Boolean(flags["with-mirror-files"])
+      })
+    : collectOperations(repoRoot, options);
+  const summary = useComposition
+    ? describeOperations(result.operations, process.cwd())
+    : describeOperations(result.operations, process.cwd());
 
-  stdout.write(
-    `Preparing ${result.projectName} (${result.variant.manifest.name}) with ${result.packageManager}\n`
-  );
+  if (useComposition) {
+    stdout.write(
+      `Preparing ${result.projectName} (${result.composition.runtime.manifest.name}) with ${result.packageManager}\n`
+    );
+  } else {
+    stdout.write(
+      `Preparing ${result.projectName} (${result.variant.manifest.name}) with ${result.packageManager}\n`
+    );
+  }
   stdout.write(`${summary}\n`);
 
   if (options.dryRun) {

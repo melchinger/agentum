@@ -1,0 +1,16 @@
+{
+  "name": "alembic",
+  "category": "migrations",
+  "description": "Python-native migration workflow for schema changes.",
+  "compatibleRuntimes": ["python"],
+  "requiresModules": ["postgres"],
+  "directories": [
+    "migrations"
+  ],
+  "requiredFiles": [
+    "migrations/README.md"
+  ],
+  "commands": [
+    "migrate: uv run alembic upgrade head"
+  ]
+}

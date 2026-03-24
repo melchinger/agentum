@@ -1,0 +1,15 @@
+{
+  "name": "liquibase",
+  "description": "Database-agnostic migration workflow for multi-engine or platform-standardized teams.",
+  "category": "migrations",
+  "compatibleVariants": ["python", "node", "php"],
+  "directories": [
+    "db/changelog"
+  ],
+  "requiredFiles": [
+    "db/changelog/README.md"
+  ],
+  "commands": [
+    "migrate: liquibase update"
+  ]
+}

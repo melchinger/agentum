@@ -1,0 +1,5 @@
+{
+  "name": "ci",
+  "description": "Adds CI workflow and validation defaults.",
+  "files": [".github/workflows/ci.yml"]
+}

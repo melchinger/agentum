@@ -1,0 +1,9 @@
+{
+  "name": "single-container",
+  "description": "Single-container deployment profile with one runtime image and reverse-proxy-aware defaults.",
+  "category": "deploy",
+  "compatibleVariants": ["python", "node", "php"],
+  "requiredFiles": [
+    "Dockerfile"
+  ]
+}

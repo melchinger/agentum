@@ -1,0 +1,15 @@
+{
+  "name": "liquibase",
+  "category": "migrations",
+  "description": "Database-agnostic changelog workflow.",
+  "compatibleRuntimes": ["python", "node"],
+  "directories": [
+    "db/changelog"
+  ],
+  "requiredFiles": [
+    "db/changelog/README.md"
+  ],
+  "commands": [
+    "migrate: liquibase update"
+  ]
+}

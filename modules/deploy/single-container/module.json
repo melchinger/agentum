@@ -1,0 +1,9 @@
+{
+  "name": "single-container",
+  "category": "deploy",
+  "description": "Single-container deployment profile.",
+  "compatibleRuntimes": ["python", "node"],
+  "requiredFiles": [
+    "Dockerfile"
+  ]
+}

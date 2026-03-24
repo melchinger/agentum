@@ -1,0 +1,15 @@
+{
+  "name": "alembic",
+  "description": "Python-native schema migration workflow aligned with SQLAlchemy-style projects.",
+  "category": "migrations",
+  "compatibleVariants": ["python"],
+  "directories": [
+    "migrations"
+  ],
+  "requiredFiles": [
+    "migrations/README.md"
+  ],
+  "commands": [
+    "migrate: uv run alembic upgrade head"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "react",
+  "category": "frontend",
+  "description": "React SPA frontend with a minimal Vite-style structure.",
+  "compatibleRuntimes": ["node", "rust"],
+  "directories": [
+    "src/ui"
+  ],
+  "requiredFiles": [
+    "src/ui/App.tsx"
+  ]
+}

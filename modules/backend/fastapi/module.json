@@ -1,0 +1,18 @@
+{
+  "name": "fastapi",
+  "category": "backend",
+  "description": "ASGI HTTP delivery layer for Python services.",
+  "compatibleRuntimes": ["python"],
+  "directories": [
+    "src/{{PYTHON_PACKAGE}}/interfaces/http"
+  ],
+  "requiredFiles": [
+    "src/{{PYTHON_PACKAGE}}/interfaces/http/app.py"
+  ],
+  "commands": [
+    "serve: uv run fastapi dev src/{{PYTHON_PACKAGE}}/interfaces/http/app.py"
+  ],
+  "detect": {
+    "packageIndicators": ["fastapi"]
+  }
+}

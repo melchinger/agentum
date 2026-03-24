@@ -10,9 +10,14 @@ const {
   toPythonPackage,
   walkTemplateFiles
 } = require("./template-utils");
+const { compositionDoctor } = require("./composition-catalog");
 
 function loadManifest(repoRoot) {
   return readJson(path.join(repoRoot, "templates", "manifest.json"));
+}
+
+function loadStacksManifest(repoRoot) {
+  return readJson(path.join(repoRoot, "stacks", "manifest.json"));
 }
 
 function loadVariant(repoRoot, variantName) {
@@ -28,6 +33,19 @@ function loadVariant(repoRoot, variantName) {
   };
 }
 
+function loadStack(repoRoot, stackName) {
+  const stackDir = path.join(repoRoot, "stacks", stackName);
+  if (!fs.existsSync(stackDir)) {
+    throw new Error(`Unknown stack module: ${stackName}`);
+  }
+
+  return {
+    dir: stackDir,
+    manifest: readJson(path.join(stackDir, "stack.json")),
+    overlay: fs.readFileSync(path.join(stackDir, "agents.md"), "utf8").trim()
+  };
+}
+
 function listVariants(repoRoot) {
   const variantsRoot = path.join(repoRoot, "variants");
   return fs
@@ -37,7 +55,60 @@ function listVariants(repoRoot) {
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function buildVariables({ projectName, variant, packageManager, withCi, withMirrorFiles }) {
+function listStacks(repoRoot, variantName) {
+  const stacksRoot = path.join(repoRoot, "stacks");
+  return fs
+    .readdirSync(stacksRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => loadStack(repoRoot, entry.name).manifest)
+    .filter((entry) => !variantName || (entry.compatibleVariants || []).includes(variantName))
+    .sort((left, right) => {
+      const categoryCompare = left.category.localeCompare(right.category);
+      return categoryCompare !== 0 ? categoryCompare : left.name.localeCompare(right.name);
+    });
+}
+
+function normalizeStackSelection(stackInput) {
+  if (!stackInput) {
+    return [];
+  }
+
+  const values = Array.isArray(stackInput) ? stackInput : [stackInput];
+  return [...new Set(
+    values
+      .flatMap((value) => String(value).split(","))
+      .map((value) => value.trim())
+      .filter(Boolean)
+  )];
+}
+
+function resolveStacks(repoRoot, variantName, stackInput) {
+  const selectedNames = normalizeStackSelection(stackInput);
+  const stacks = selectedNames.map((name) => loadStack(repoRoot, name));
+
+  for (const stack of stacks) {
+    if (!(stack.manifest.compatibleVariants || []).includes(variantName)) {
+      throw new Error(
+        `Stack module \`${stack.manifest.name}\` is not compatible with variant \`${variantName}\`.`
+      );
+    }
+  }
+
+  return stacks.sort((left, right) => {
+    const categoryCompare = left.manifest.category.localeCompare(right.manifest.category);
+    return categoryCompare !== 0
+      ? categoryCompare
+      : left.manifest.name.localeCompare(right.manifest.name);
+  });
+}
+
+function renderStackSummary(stacks) {
+  return stacks.length > 0
+    ? stacks.map((stack) => `\`${stack.manifest.name}\` (${stack.manifest.category})`).join(", ")
+    : "none selected";
+}
+
+function buildVariables({ projectName, variant, packageManager, withCi, withMirrorFiles, stacks }) {
   const projectSlug = slugify(projectName);
   return {
     PROJECT_NAME: projectName,
@@ -47,7 +118,9 @@ function buildVariables({ projectName, variant, packageManager, withCi, withMirr
     PACKAGE_MANAGER: packageManager,
     WITH_CI: String(Boolean(withCi)),
     WITH_MIRRORS: String(Boolean(withMirrorFiles)),
-    PYTHON_PACKAGE: toPythonPackage(projectName)
+    PYTHON_PACKAGE: toPythonPackage(projectName),
+    STACKS_JSON: JSON.stringify(stacks.map((stack) => stack.manifest.name)),
+    SELECTED_STACKS: renderStackSummary(stacks)
   };
 }
 
@@ -60,20 +133,33 @@ function formatCommands(commandTemplates, variables) {
     .join("\n");
 }
 
-function buildAgentsContent(repoRoot, variant, variables) {
+function buildStackCommands(stacks, variables) {
+  const commandTemplates = stacks.flatMap((stack) => stack.manifest.commands || []);
+  if (commandTemplates.length === 0) {
+    return "- None defined.";
+  }
+  return formatCommands(commandTemplates, variables);
+}
+
+function buildAgentsContent(repoRoot, variant, stacks, variables) {
   const baseTemplate = fs.readFileSync(
     path.join(repoRoot, "templates", "base", "agents", "base.md"),
     "utf8"
   );
   const commandsBlock = formatCommands(variant.manifest.commands, variables);
+  const stackOverlay = stacks.map((stack) => stack.overlay).join("\n\n").trim();
   return renderString(baseTemplate, {
     ...variables,
     COMMANDS_BLOCK: commandsBlock,
-    STACK_OVERLAY: variant.overlay
+    STACK_COMMANDS_BLOCK: buildStackCommands(stacks, variables),
+    STACK_OVERLAY: [variant.overlay, stackOverlay].filter(Boolean).join("\n\n")
   });
 }
 
 function collectTemplateOperations(templateRoot, variables, targetDir, options = {}) {
+  if (!fs.existsSync(templateRoot)) {
+    return [];
+  }
   return walkTemplateFiles(templateRoot)
     .filter((filePath) => !options.exclude?.includes(path.relative(templateRoot, filePath)))
     .map((filePath) => {
@@ -94,6 +180,7 @@ function collectDirectoryOperations(directories, variables, targetDir) {
 function collectOperations(repoRoot, options) {
   const manifest = loadManifest(repoRoot);
   const variant = loadVariant(repoRoot, options.variant);
+  const stacks = resolveStacks(repoRoot, variant.manifest.name, options.stacks);
   const packageManager =
     options.packageManager ||
     (["node", "react", "nextjs"].includes(variant.manifest.name)
@@ -105,11 +192,17 @@ function collectOperations(repoRoot, options) {
     variant,
     packageManager,
     withCi: options.withCi,
-    withMirrorFiles: options.withMirrorFiles
+    withMirrorFiles: options.withMirrorFiles,
+    stacks
   });
 
   const operations = [
     ...collectDirectoryOperations(variant.manifest.directories, variables, options.targetDir),
+    ...collectDirectoryOperations(
+      stacks.flatMap((stack) => stack.manifest.directories || []),
+      variables,
+      options.targetDir
+    ),
     ...collectTemplateOperations(
       path.join(repoRoot, "templates", "base", "files"),
       variables,
@@ -117,10 +210,13 @@ function collectOperations(repoRoot, options) {
       { exclude: [path.join(".github", "workflows", "ci.yml.tmpl")] }
     ),
     ...collectTemplateOperations(path.join(variant.dir, "files"), variables, options.targetDir),
+    ...stacks.flatMap((stack) =>
+      collectTemplateOperations(path.join(stack.dir, "files"), variables, options.targetDir)
+    ),
     {
       type: "write",
       target: path.join(options.targetDir, "AGENTS.md"),
-      content: buildAgentsContent(repoRoot, variant, variables)
+      content: buildAgentsContent(repoRoot, variant, stacks, variables)
     }
   ];
 
@@ -156,7 +252,18 @@ function collectOperations(repoRoot, options) {
     }
   }
 
-  return { manifest, variant, variables, operations, packageManager, projectName };
+  const envLines = stacks.flatMap((stack) =>
+    (stack.manifest.env || []).map((line) => renderString(line, variables))
+  );
+  if (envLines.length > 0) {
+    operations.push({
+      type: "write",
+      target: path.join(options.targetDir, ".env.example"),
+      content: `${operations.find((entry) => entry.target.endsWith(`${path.sep}.env.example`)).content.trimEnd()}\n${envLines.join("\n")}\n`
+    });
+  }
+
+  return { manifest, variant, stacks, variables, operations, packageManager, projectName };
 }
 
 function assertTargetState(targetDir, mode, force) {
@@ -196,6 +303,11 @@ function describeOperations(operations, cwd) {
 }
 
 function doctor(repoRoot, targetDir) {
+  const compositionResult = compositionDoctor(repoRoot, targetDir);
+  if (compositionResult) {
+    return compositionResult;
+  }
+
   const manifest = loadManifest(repoRoot);
   const metadataPath = path.join(targetDir, manifest.metadataFile);
   const results = [];
@@ -241,6 +353,17 @@ function doctor(repoRoot, targetDir) {
     });
   }
 
+  const selectedStacks = resolveStacks(repoRoot, variant.manifest.name, metadata.stacks || []);
+  for (const stack of selectedStacks) {
+    for (const file of stack.manifest.requiredFiles || []) {
+      const rendered = renderString(file, variables);
+      results.push({
+        file: rendered,
+        ok: fs.existsSync(path.join(targetDir, rendered))
+      });
+    }
+  }
+
   if (metadata.withMirrorFiles) {
     for (const mirror of manifest.mirrorFiles) {
       results.push({
@@ -260,6 +383,7 @@ function doctor(repoRoot, targetDir) {
   return {
     ok: results.every((entry) => entry.ok),
     variant: variant.manifest.name,
+    stacks: selectedStacks.map((stack) => stack.manifest.name),
     results
   };
 }
@@ -271,7 +395,12 @@ module.exports = {
   collectOperations,
   describeOperations,
   doctor,
+  listStacks,
   listVariants,
   loadManifest,
-  loadVariant
+  loadStack,
+  loadStacksManifest,
+  loadVariant,
+  normalizeStackSelection,
+  resolveStacks
 };

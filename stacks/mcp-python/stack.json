@@ -1,0 +1,12 @@
+{
+  "name": "mcp-python",
+  "description": "Python-facing MCP integration boundary for exposing tools cleanly.",
+  "category": "integration",
+  "compatibleVariants": ["python"],
+  "directories": [
+    "src/{{PYTHON_PACKAGE}}/interfaces/mcp"
+  ],
+  "requiredFiles": [
+    "src/{{PYTHON_PACKAGE}}/interfaces/mcp/__init__.py"
+  ]
+}

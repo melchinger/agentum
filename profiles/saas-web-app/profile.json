@@ -1,0 +1,17 @@
+{
+  "name": "saas-web-app",
+  "description": "Multi-user web application with production-oriented defaults.",
+  "recommendedRuntime": "python",
+  "defaultModules": ["fastapi", "postgres", "alembic"],
+  "recommendedModules": ["htmx"],
+  "requiredPolicies": ["security-baseline", "ci"],
+  "rules": [
+    {
+      "level": "warning",
+      "when": {
+        "modulesAny": ["sqlite"]
+      },
+      "message": "SQLite is usually not a good primary database for a SaaS profile."
+    }
+  ]
+}

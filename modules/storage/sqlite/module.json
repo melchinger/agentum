@@ -1,0 +1,9 @@
+{
+  "name": "sqlite",
+  "category": "storage",
+  "description": "SQLite for local-first, desktop, or single-node use cases.",
+  "compatibleRuntimes": ["python", "node", "rust"],
+  "env": [
+    "DATABASE_URL=sqlite:///./data/app.db"
+  ]
+}

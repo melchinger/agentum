@@ -10,7 +10,8 @@ const {
 const {
   collectOperations,
   loadManifest,
-  listVariants
+  listVariants,
+  normalizeStackSelection
 } = require("./repo-generator");
 
 const IGNORED_DIRS = new Set([
@@ -41,6 +42,11 @@ function safeReadJson(filePath) {
   } catch {
     return null;
   }
+}
+
+function readGeneratorMetadata(repoRoot, targetDir) {
+  const manifest = loadManifest(repoRoot);
+  return safeReadJson(path.join(targetDir, manifest.metadataFile));
 }
 
 function getToolVersion(repoRoot) {
@@ -308,7 +314,13 @@ function collectConflicts(targetDir) {
 
 function scanRepository(repoRoot, targetDir, options = {}) {
   const variantDetection = detectVariant(repoRoot, targetDir);
+  const metadata = readGeneratorMetadata(repoRoot, targetDir);
   const selectedVariant = options.variant || variantDetection.detectedVariant;
+  const selectedStacks = normalizeStackSelection(options.stacks || metadata?.stacks || []);
+  const selectedProfile = metadata?.profile || null;
+  const selectedRuntime = metadata?.runtime || null;
+  const selectedModules = normalizeStackSelection(metadata?.modules || []);
+  const selectedPolicies = normalizeStackSelection(metadata?.policies || []);
   const governance = summarizeGovernance(repoRoot, targetDir);
   const repoFiles = walkRepoFiles(targetDir).map((filePath) => path.relative(targetDir, filePath).replace(/\\/g, "/"));
   const repoDirectories = listDirectories(targetDir).map((dirPath) => path.relative(targetDir, dirPath).replace(/\\/g, "/"));
@@ -327,6 +339,11 @@ function scanRepository(repoRoot, targetDir, options = {}) {
     detectedVariant: variantDetection.detectedVariant,
     confidence: variantDetection.confidence,
     selectedVariant,
+    selectedStacks,
+    selectedProfile,
+    selectedRuntime,
+    selectedModules,
+    selectedPolicies,
     packageManager: options.packageManager || detectPackageManager(targetDir),
     projectStyle,
     repoMarkers: collectRepoMarkers(targetDir),
@@ -461,11 +478,13 @@ function buildRetrofitPlan(repoRoot, targetDir, options = {}) {
 
   const packageManager = options.packageManager || scan.packageManager;
   const projectName = options.projectName || path.basename(targetDir);
+  const stacks = normalizeStackSelection(options.stacks || scan.selectedStacks || []);
   const generated = collectOperations(repoRoot, {
     targetDir,
     variant: scan.selectedVariant,
     projectName,
     packageManager,
+    stacks,
     withCi: Boolean(options.withCi),
     withMirrorFiles: Boolean(options.withMirrorFiles)
   });
@@ -507,6 +526,7 @@ function buildRetrofitPlan(repoRoot, targetDir, options = {}) {
     detectedVariant: scan.detectedVariant,
     confidence: scan.confidence,
     packageManager: packageManager || generated.packageManager,
+    selectedStacks: stacks,
     projectStyle: scan.projectStyle,
     repoMarkers: scan.repoMarkers,
     presentFiles: scan.presentFiles,

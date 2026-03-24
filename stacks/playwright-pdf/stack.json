@@ -1,0 +1,12 @@
+{
+  "name": "playwright-pdf",
+  "description": "HTML-to-PDF rendering pipeline built around browser-based rendering.",
+  "category": "document",
+  "compatibleVariants": ["python", "node"],
+  "directories": [
+    "templates/pdf"
+  ],
+  "requiredFiles": [
+    "templates/pdf/README.md"
+  ]
+}

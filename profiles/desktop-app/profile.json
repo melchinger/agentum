@@ -1,0 +1,16 @@
+{
+  "name": "desktop-app",
+  "description": "Cross-platform desktop application with local-first defaults.",
+  "recommendedRuntime": "rust",
+  "defaultModules": ["tauri", "react", "sqlite"],
+  "requiredPolicies": ["security-baseline"],
+  "rules": [
+    {
+      "level": "info",
+      "when": {
+        "modulesMissing": ["sqlite"]
+      },
+      "message": "Desktop apps often benefit from a local-first storage module."
+    }
+  ]
+}

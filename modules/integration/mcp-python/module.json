@@ -1,0 +1,12 @@
+{
+  "name": "mcp-python",
+  "category": "integration",
+  "description": "Python-facing MCP tool integration boundary.",
+  "compatibleRuntimes": ["python"],
+  "directories": [
+    "src/{{PYTHON_PACKAGE}}/interfaces/mcp"
+  ],
+  "requiredFiles": [
+    "src/{{PYTHON_PACKAGE}}/interfaces/mcp/__init__.py"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "fastapi",
+  "description": "FastAPI delivery layer with health route and ASGI app entrypoint.",
+  "category": "backend",
+  "compatibleVariants": ["python"],
+  "directories": [
+    "src/{{PYTHON_PACKAGE}}/interfaces/http"
+  ],
+  "requiredFiles": [
+    "src/{{PYTHON_PACKAGE}}/interfaces/http/app.py"
+  ],
+  "commands": [
+    "serve: uv run fastapi dev src/{{PYTHON_PACKAGE}}/interfaces/http/app.py"
+  ]
+}

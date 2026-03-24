@@ -1,0 +1,9 @@
+{
+  "name": "sqlite",
+  "description": "SQLite for local development, prototypes, or single-node deployments.",
+  "category": "storage",
+  "compatibleVariants": ["python", "node", "php"],
+  "env": [
+    "DATABASE_URL=sqlite:///./data/app.db"
+  ]
+}

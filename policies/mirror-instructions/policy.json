@@ -1,0 +1,4 @@
+{
+  "name": "mirror-instructions",
+  "description": "Generates mirrored instruction files derived from AGENTS.md."
+}

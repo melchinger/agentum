@@ -6,10 +6,14 @@ This file is the canonical instruction source for `{{PROJECT_NAME}}`.
 - Repository type: `{{VARIANT}}`
 - Primary language/runtime: `{{RUNTIME}}`
 - Default package manager: `{{PACKAGE_MANAGER}}`
+- Selected stack modules: {{SELECTED_STACKS}}
 - Goal: produce clean, secure, maintainable software with professional repository hygiene.
 
 ## Commands
 {{COMMANDS_BLOCK}}
+
+## Stack Commands
+{{STACK_COMMANDS_BLOCK}}
 
 ## Architecture Boundaries
 - Respect a layered structure with clear separation between domain logic, application flow, infrastructure, and presentation or delivery code.

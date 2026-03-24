@@ -1,0 +1,21 @@
+{
+  "name": "rust",
+  "description": "Rust runtime for system-facing applications and desktop shells.",
+  "language": "rust",
+  "packageManagers": ["cargo"],
+  "directories": [
+    "src",
+    "tests"
+  ],
+  "requiredFiles": [
+    "Cargo.toml",
+    "src/main.rs"
+  ],
+  "commands": [
+    "install: cargo fetch",
+    "test: cargo test"
+  ],
+  "detect": {
+    "files": ["Cargo.toml"]
+  }
+}
