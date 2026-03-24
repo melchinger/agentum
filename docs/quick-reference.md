@@ -1,26 +1,39 @@
 # Quick Reference
 
-Kurze Copy/Paste-Befehle für den Alltag.
+Kurze Copy/Paste-Befehle fÃ¼r den Alltag.
 
-## Varianten anzeigen
+## Legacy Variants
 
 ```bash
 node scripts/init-repo.js list-variants
-```
-
-## Neues Repo erzeugen
-
-```bash
 node scripts/init-repo.js new ../my-app --variant react --project-name my-app --with-ci
+node scripts/init-repo.js new ../my-plugin --variant wordpress-plugin --project-name my-plugin --with-ci
 ```
 
-WordPress-Plugin:
+## Composition Catalog
 
 ```bash
-node scripts/init-repo.js new ../aiLeadMagnet --variant wordpress-plugin --project-name aiLeadMagnet --with-ci
+node scripts/init-repo.js list-profiles
+node scripts/init-repo.js list-runtimes
+node scripts/init-repo.js list-modules --runtime python
+node scripts/init-repo.js list-policies
 ```
 
-## Bestehendes Repo sicher nachrüsten
+## Stack prÃ¼fen
+
+```bash
+node scripts/init-repo.js validate-stack --profile saas-web-app --runtime python --modules htmx,mcp-python,playwright-pdf,single-container --with-ci
+node scripts/init-repo.js explain-stack --profile desktop-app
+```
+
+## Komponiertes Repo erzeugen
+
+```bash
+node scripts/init-repo.js new ../saas-app --profile saas-web-app --runtime python --project-name saas-app --modules htmx,mcp-python,playwright-pdf,single-container --policies mirror-instructions --with-ci
+node scripts/init-repo.js new ../desktop-app --profile desktop-app --project-name desktop-app
+```
+
+## Bestehendes Repo sicher nachrÃ¼sten
 
 ```bash
 node scripts/init-repo.js scan ../legacy-app
@@ -30,43 +43,31 @@ node scripts/init-repo.js refactor-plan ../legacy-app
 node scripts/init-repo.js doctor ../legacy-app
 ```
 
-## JSON für CI/Automationen
+## JSON fÃ¼r CI und Agenten
 
 ```bash
 node scripts/init-repo.js scan ../legacy-app --json
-node scripts/init-repo.js retrofit-plan ../legacy-app --json
-node scripts/init-repo.js refactor-plan ../legacy-app --json
 node scripts/init-repo.js doctor ../legacy-app --json
+node scripts/init-repo.js validate-stack --profile saas-web-app --runtime python --modules htmx,mcp-python --json
+node scripts/init-repo.js explain-stack --profile desktop-app --json
 ```
 
-## Häufige Stolpersteine
-
-### Falscher Variant-Name
-
-Nicht:
+## Manifest-Validierung
 
 ```bash
---variant wordpress
+node scripts/validate-manifests.js
 ```
 
-Richtig:
+## HÃ¤ufige Stolpersteine
+
+Falscher WordPress-Name:
 
 ```bash
 --variant wordpress-plugin
 ```
 
-### Stale Plan
-
-Wenn `retrofit-apply` wegen stale Plan stoppt:
+Stale Plan:
 
 ```bash
 node scripts/init-repo.js retrofit-plan ../legacy-app
 ```
-
-## Sicherheits-Reminder
-
-- zuerst planen, dann anwenden
-- in Branch arbeiten
-- `manualReviewItems` immer lesen
-
-Mehr Kontext: `docs/usage-guide.md` und `docs/disclaimer-and-safety.md`.

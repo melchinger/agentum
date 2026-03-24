@@ -1,32 +1,37 @@
 # Usage Guide
 
-Diese Anleitung ist für Menschen gemacht, die schon etwas gebaut haben, aber jetzt Struktur und Sicherheit wollen.
+Diese Anleitung zeigt beide Arbeitsmodi von Agentum:
+
+- `variants/` fÃ¼r das bisherige, einfache Variant-Modell
+- `profiles/runtimes/modules/policies` fÃ¼r das neue Kompositionsmodell
 
 ## Kurz gesagt
 
-Wenn ein Projekt schon existiert, arbeite immer in dieser Reihenfolge:
+Nutze `variants`, wenn du schnell ein klassisches Skeleton oder einen Retrofit-Flow brauchst.
 
-1. `scan`
-2. `retrofit-plan`
-3. Plan lesen
-4. `retrofit-apply`
-5. `refactor-plan`
-6. `doctor`
+Nutze das Kompositionsmodell, wenn du bewusst einen Stack zusammensetzen, validieren und erklÃ¤ren willst, zum Beispiel:
 
-So vermeidest du blindes Überschreiben.
+- `saas-web-app + python + fastapi + postgres + alembic`
+- `desktop-app + rust + tauri + react + sqlite`
 
 ## Voraussetzungen
 
 - Node.js `>=20`
-- Ausführung aus dem Root dieses Repositories
+- AusfÃ¼hrung aus dem Root dieses Repositories
 
 ```bash
 node scripts/init-repo.js <command>
 ```
 
-## Varianten
+## 1. Legacy Variant Workflow
 
-Verfügbare Varianten:
+### Varianten anzeigen
+
+```bash
+node scripts/init-repo.js list-variants
+```
+
+Aktuell verfÃ¼gbar:
 
 - `node`
 - `react`
@@ -40,9 +45,7 @@ Wichtig:
 - `--variant wordpress` funktioniert nicht
 - korrekt ist `--variant wordpress-plugin`
 
-## Neuerstellung eines Repositories
-
-Beispiel:
+### Neues Repo erzeugen
 
 ```bash
 node scripts/init-repo.js new ../my-app --variant react --project-name my-app --with-ci
@@ -51,103 +54,105 @@ node scripts/init-repo.js new ../my-app --variant react --project-name my-app --
 Optional:
 
 - `--package-manager pnpm|npm|yarn|composer|uv`
+- `--stacks <a,b>`
 - `--with-mirror-files`
 - `--dry-run`
 - `--force`
 
-## Bestehendes Repository sicher nachrüsten
+### Bestehendes Repository sicher nachrÃ¼sten
 
-### 1) Analyse
+Arbeite immer in dieser Reihenfolge:
+
+1. `scan`
+2. `retrofit-plan`
+3. Plan lesen
+4. `retrofit-apply`
+5. `refactor-plan`
+6. `doctor`
+
+Beispiele:
 
 ```bash
 node scripts/init-repo.js scan ../legacy-app
-```
-
-Du siehst unter anderem:
-
-- `detectedVariant`
-- `projectStyle`
-- `missingFiles`
-- `divergentFiles`
-- `manifestQuality`
-- `repoFingerprint`
-
-### 2) Plan erstellen
-
-```bash
 node scripts/init-repo.js retrofit-plan ../legacy-app
-```
-
-Artefakte:
-
-- `.agentum/retrofit-plan.json`
-- `.agentum/retrofit-plan.md`
-
-### 3) Plan prüfen
-
-Prüfe vor dem Anwenden:
-
-- ob die Variante passt
-- ob `manualReviewItems` sinnvoll sind
-- ob du CI/Mirror-Dateien wirklich willst
-- ob der Plan noch frisch ist
-
-### 4) Plan anwenden
-
-```bash
 node scripts/init-repo.js retrofit-apply ../legacy-app
-```
-
-Wenn das Repo nach der Planerstellung geändert wurde, bricht der Apply bewusst mit "stale plan" ab.
-
-### 5) Refactoring planen
-
-```bash
 node scripts/init-repo.js refactor-plan ../legacy-app
-```
-
-Artefakte:
-
-- `.agentum/refactor-plan.md`
-- `.agentum/refactor-plan.json`
-
-Der Plan priorisiert Hotspots und gibt konkrete Extraktionsrichtungen statt nur allgemeiner Architekturtexte.
-
-### 6) Zustand prüfen
-
-```bash
 node scripts/init-repo.js doctor ../legacy-app
 ```
 
+## 2. Composition Workflow
+
+Das neue Modell besteht aus:
+
+- `profiles/` fÃ¼r Produktziele
+- `runtimes/` fÃ¼r Basisskelette
+- `modules/` fÃ¼r technische FÃ¤higkeiten
+- `policies/` fÃ¼r Querschnittsstandards
+
+### Katalog anzeigen
+
+```bash
+node scripts/init-repo.js list-profiles
+node scripts/init-repo.js list-runtimes
+node scripts/init-repo.js list-modules --runtime python
+node scripts/init-repo.js list-policies
+```
+
+### Stack validieren und erklÃ¤ren
+
+```bash
+node scripts/init-repo.js validate-stack --profile saas-web-app --runtime python --modules htmx,mcp-python,playwright-pdf,single-container --with-ci
+node scripts/init-repo.js explain-stack --profile desktop-app
+```
+
+`validate-stack` ist fÃ¼r Regeln und Maschinenlogik gedacht.
+
+`explain-stack` ist fÃ¼r Menschen gedacht und zeigt die aufgelÃ¶ste Zielkombination.
+
+### Neues Repo aus einer Komposition erzeugen
+
+SaaS-Beispiel:
+
+```bash
+node scripts/init-repo.js new ../saas-app --profile saas-web-app --runtime python --project-name saas-app --modules htmx,mcp-python,playwright-pdf,single-container --policies mirror-instructions --with-ci
+```
+
+Desktop/Tauri-Beispiel:
+
+```bash
+node scripts/init-repo.js new ../desktop-app --profile desktop-app --project-name desktop-app
+```
+
+Hinweise:
+
+- Profile kÃ¶nnen Default-Module und Pflicht-Policies mitbringen.
+- Module kÃ¶nnen weitere Module implizieren oder harte Anforderungen haben.
+- Policies ergÃ¤nzen Governance, ohne als Framework-Entscheidung modelliert zu werden.
+
 ## JSON-Modus
 
-Für CI, Automationen oder Agent-Pipelines:
+FÃ¼r CI, Automationen oder Agent-Pipelines:
 
 ```bash
 node scripts/init-repo.js scan ../legacy-app --json
 node scripts/init-repo.js retrofit-plan ../legacy-app --json
 node scripts/init-repo.js refactor-plan ../legacy-app --json
 node scripts/init-repo.js doctor ../legacy-app --json
+node scripts/init-repo.js validate-stack --profile saas-web-app --runtime python --modules htmx,mcp-python --json
+node scripts/init-repo.js explain-stack --profile desktop-app --json
 ```
 
-## WordPress-Hinweis
+## Manifest-Validierung
 
-Wenn dein Projekt ein WP-Plugin ist, nutze `wordpress-plugin`.
-
-Beispiel:
+Wenn du Katalog-Dateien pflegst, validiere sie vor Ã„nderungen am Generator:
 
 ```bash
-node scripts/init-repo.js new ../aiLeadMagnet --variant wordpress-plugin --project-name aiLeadMagnet --with-ci
+node scripts/validate-manifests.js
 ```
 
-Zielbild bei WP:
+## Typische Fehler und schnelle LÃ¶sung
 
-- `includes/` als dünne Adapter/Bootstrap
-- Fachlogik in `src/Domain`, `src/Application`, `src/Infrastructure`
-
-## Typische Fehler und schnelle Lösung
-
-### "Unknown variant: wordpress"
+### `Unknown variant: wordpress`
 
 Nutze:
 
@@ -155,33 +160,45 @@ Nutze:
 --variant wordpress-plugin
 ```
 
-### "Retrofit plan is stale"
+### `Retrofit plan is stale`
 
-Repo wurde nach Planerstellung geändert. Neu erzeugen:
+Das Repo wurde nach der Planerstellung geÃ¤ndert. Erzeuge den Plan neu:
 
 ```bash
 node scripts/init-repo.js retrofit-plan ../legacy-app
 ```
 
-### Doctor meldet Missing bei Bestandsrepo
+### `validate-stack` meldet Konflikte
 
-Normal, wenn noch kein vollständiger Retrofit gelaufen ist.
+Dann passt mindestens ein Modul nicht zur Runtime oder zu anderen Modulen. Nutze:
 
-## Gute Arbeitsweise (empfohlen)
+```bash
+node scripts/init-repo.js explain-stack ...
+```
 
-- vor Änderungen eigenen Branch erstellen
-- bei kritischen Systemen Backup/Snapshot machen
-- nach jedem größeren Schritt Projekt-Tests laufen lassen
-- `manualReviewItems` nicht ignorieren
+und reduziere danach die Kombination auf die tatsÃ¤chlich gewollten Bausteine.
+
+## Gute Arbeitsweise
+
+- Vor Ã„nderungen eigenen Branch erstellen.
+- Bei kritischen Systemen Backup oder Snapshot machen.
+- Bei Retrofit-Ã„nderungen zuerst planen, dann anwenden.
+- `manualReviewItems` nicht ignorieren.
+- Bei Katalog-Arbeit erst Manifeste validieren, dann Generator oder Tests anpassen.
 
 ## Grenzen des Tools
 
-`agentum` ist ein Struktur- und Sicherheitswerkzeug, kein Autopilot für komplette Migrationen.
+Agentum ist ein Struktur-, Governance- und Stack-Kompositionswerkzeug.
 
 Es macht nicht automatisch:
 
 - komplexe Legacy-Migration ohne Review
-- blindes Überschreiben bestehender Kern-Dateien
+- blindes Ãœberschreiben bestehender Kern-Dateien
+- vollstÃ¤ndige App-Implementierung fÃ¼r jede mÃ¶gliche Stack-Kombination
 - rechtsverbindliche Security- oder Compliance-Freigaben
 
-Für formale Anforderungen siehe `docs/disclaimer-and-safety.md`.
+Mehr Kontext:
+
+- `docs/quick-reference.md`
+- `docs/composition-model.md`
+- `docs/disclaimer-and-safety.md`
