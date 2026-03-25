@@ -36,6 +36,63 @@ const {
 
 const repoRoot = path.resolve(__dirname, "..");
 
+function joinNames(entries) {
+  return entries.map((entry) => entry.name).join(", ");
+}
+
+function findByName(entries, name, label) {
+  const match = entries.find((entry) => entry.name === name);
+  if (!match) {
+    throw new Error(`Unknown ${label}: ${name}`);
+  }
+  return match;
+}
+
+async function askWithDefault(rl, label, defaultValue) {
+  const suffix = defaultValue ? ` (${defaultValue})` : "";
+  const answer = (await rl.question(`${label}${suffix}: `)).trim();
+  return answer || defaultValue || "";
+}
+
+async function askYesNo(rl, label, defaultValue) {
+  const answer = (
+    await rl.question(`${label} (${defaultValue ? "Y/n" : "y/N"}): `)
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!answer) {
+    return defaultValue;
+  }
+
+  if (["y", "yes"].includes(answer)) {
+    return true;
+  }
+
+  if (["n", "no"].includes(answer)) {
+    return false;
+  }
+
+  throw new Error(`Please answer yes or no for "${label}".`);
+}
+
+function createPromptInterface(io) {
+  if (Array.isArray(io.promptAnswers)) {
+    let index = 0;
+    return {
+      async question(message) {
+        io.stdout.write(message);
+        const answer = io.promptAnswers[index];
+        index += 1;
+        return `${answer ?? ""}`;
+      },
+      close() {}
+    };
+  }
+
+  return readline.createInterface({ input: io.stdin, output: io.stdout });
+}
+
 function emitOutput(output, flags, payload, renderText) {
   if (flags.json) {
     output.write(`${JSON.stringify(payload, null, 2)}\n`);
@@ -77,7 +134,7 @@ function parseArgs(argv) {
 async function promptForMissing(command, positionals, flags, io) {
   const variants = listVariants(repoRoot);
   const manifest = loadManifest(repoRoot);
-  const rl = readline.createInterface({ input: io.stdin, output: io.stdout });
+  const rl = createPromptInterface(io);
 
   try {
     const targetDir =
@@ -159,6 +216,151 @@ async function promptForMissing(command, positionals, flags, io) {
   }
 }
 
+async function promptForWizard(positionals, flags, io) {
+  const variants = listVariants(repoRoot);
+  const profiles = listProfiles(repoRoot);
+  const runtimes = listRuntimes(repoRoot);
+  const policies = listPolicies(repoRoot);
+  const manifest = loadManifest(repoRoot);
+  const rl = createPromptInterface(io);
+
+  try {
+    const targetDir = path.resolve(
+      positionals[0] || (await askWithDefault(rl, "Target directory", ""))
+    );
+    const projectName = await askWithDefault(
+      rl,
+      "Project name",
+      flags["project-name"] || path.basename(targetDir)
+    );
+    const setupType = await askWithDefault(
+      rl,
+      "Setup type (composition or variant)",
+      flags.variant ? "variant" : "composition"
+    );
+
+    if (!["composition", "variant"].includes(setupType)) {
+      throw new Error(`Unknown setup type: ${setupType}`);
+    }
+
+    if (setupType === "variant") {
+      io.stdout.write(`Available variants: ${joinNames(variants)}\n`);
+      const variant = await askWithDefault(rl, "Variant", flags.variant || "");
+      const variantManifest = findByName(variants, variant, "variant");
+      const packageManagerDefault =
+        flags["package-manager"] ||
+        (["node", "react", "nextjs"].includes(variantManifest.name)
+          ? manifest.defaultJsPackageManager
+          : "");
+      const packageManager = await askWithDefault(
+        rl,
+        "Package manager",
+        packageManagerDefault
+      );
+      const availableStacks = listStacks(repoRoot, variantManifest.name);
+      if (availableStacks.length > 0) {
+        io.stdout.write(
+          `Available stack modules: ${availableStacks.map((entry) => entry.name).join(", ")}\n`
+        );
+      }
+      const stacks = normalizeStackSelection(
+        await askWithDefault(rl, "Stack modules (comma-separated, optional)", flags.stacks || "")
+      );
+      const withCi =
+        typeof flags["with-ci"] === "boolean"
+          ? flags["with-ci"]
+          : await askYesNo(rl, "Include CI workflow", manifest.interactiveDefaults.withCi);
+      const withMirrorFiles =
+        typeof flags["with-mirror-files"] === "boolean"
+          ? flags["with-mirror-files"]
+          : await askYesNo(
+              rl,
+              "Generate mirror files",
+              manifest.interactiveDefaults.withMirrorFiles
+            );
+
+      return {
+        mode: "variant",
+        targetDir,
+        projectName,
+        variant,
+        packageManager,
+        stacks,
+        withCi,
+        withMirrorFiles,
+        dryRun: Boolean(flags["dry-run"]),
+        force: Boolean(flags.force)
+      };
+    }
+
+    io.stdout.write(`Available profiles: ${joinNames(profiles)}\n`);
+    const profile = await askWithDefault(rl, "Profile (optional)", flags.profile || "");
+    const profileManifest = profile ? findByName(profiles, profile, "profile") : null;
+
+    io.stdout.write(`Available runtimes: ${joinNames(runtimes)}\n`);
+    const runtime = await askWithDefault(
+      rl,
+      "Runtime",
+      flags.runtime || profileManifest?.recommendedRuntime || ""
+    );
+    const runtimeManifest = findByName(runtimes, runtime, "runtime");
+
+    const modulesForRuntime = listModules(repoRoot, { runtime: runtimeManifest.name });
+    io.stdout.write(
+      `Available modules for ${runtimeManifest.name}: ${joinNames(modulesForRuntime)}\n`
+    );
+    const modulesPrompt = profileManifest?.defaultModules?.length
+      ? `Additional modules (defaults from profile: ${profileManifest.defaultModules.join(", ")})`
+      : "Modules (comma-separated, optional)";
+    const modules = normalizeSelection(
+      await askWithDefault(rl, modulesPrompt, flags.modules || "")
+    );
+
+    io.stdout.write(`Available policies: ${joinNames(policies)}\n`);
+    const policiesPrompt = profileManifest?.requiredPolicies?.length
+      ? `Additional policies (defaults from profile: ${profileManifest.requiredPolicies.join(", ")})`
+      : "Policies (comma-separated, optional)";
+    const selectedPolicies = normalizeSelection(
+      await askWithDefault(rl, policiesPrompt, flags.policies || "")
+    );
+
+    const packageManager = await askWithDefault(
+      rl,
+      "Package manager",
+      flags["package-manager"] || runtimeManifest.packageManagers[0] || ""
+    );
+    const withCi =
+      typeof flags["with-ci"] === "boolean"
+        ? flags["with-ci"]
+        : await askYesNo(rl, "Include CI workflow", manifest.interactiveDefaults.withCi);
+    const withMirrorFiles =
+      typeof flags["with-mirror-files"] === "boolean"
+        ? flags["with-mirror-files"]
+        : await askYesNo(
+            rl,
+            "Generate mirror files",
+            manifest.interactiveDefaults.withMirrorFiles
+          );
+
+    return {
+      mode: "composition",
+      targetDir,
+      projectName,
+      profile: profile || undefined,
+      runtime,
+      modules,
+      policies: selectedPolicies,
+      packageManager,
+      withCi,
+      withMirrorFiles,
+      dryRun: Boolean(flags["dry-run"]),
+      force: Boolean(flags.force)
+    };
+  } finally {
+    rl.close();
+  }
+}
+
 function printUsage() {
   processStdout.write(`Usage:
   init-repo list-variants
@@ -169,6 +371,7 @@ function printUsage() {
   init-repo list-policies
   init-repo validate-stack [--profile <name>] [--runtime <name>] [--modules <a,b>] [--policies <a,b>]
   init-repo explain-stack [--profile <name>] [--runtime <name>] [--modules <a,b>] [--policies <a,b>]
+  init-repo wizard [<target-dir>] [--project-name <name>] [--profile <name>] [--runtime <name>] [--modules <a,b>] [--policies <a,b>] [--variant <name>] [--package-manager <pm>] [--with-ci] [--with-mirror-files] [--dry-run] [--force]
   init-repo new <target-dir> [--variant <name>] [--project-name <name>] [--package-manager <pm>] [--stacks <a,b>] [--with-ci] [--with-mirror-files] [--dry-run] [--force]
   init-repo apply <target-dir> --variant <name> [--project-name <name>] [--package-manager <pm>] [--stacks <a,b>] [--with-ci] [--with-mirror-files] [--dry-run] [--force]
   init-repo scan <target-dir> [--variant <name>] [--package-manager <pm>]
@@ -419,6 +622,58 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
         );
       }
     );
+    return;
+  }
+
+  if (command === "wizard") {
+    if (!stdin.isTTY) {
+      throw new Error("wizard requires an interactive terminal.");
+    }
+
+    const options = await promptForWizard(positionals, flags, io);
+    assertTargetState(options.targetDir, "new", options.force);
+    const result = options.mode === "composition"
+      ? collectCompositionOperations(repoRoot, {
+          targetDir: options.targetDir,
+          projectName: options.projectName,
+          profile: options.profile,
+          runtime: options.runtime,
+          modules: options.modules,
+          policies: options.policies,
+          packageManager: options.packageManager,
+          withCi: options.withCi,
+          withMirrorFiles: options.withMirrorFiles
+        })
+      : collectOperations(repoRoot, {
+          targetDir: options.targetDir,
+          variant: options.variant,
+          projectName: options.projectName,
+          packageManager: options.packageManager,
+          stacks: options.stacks,
+          withCi: options.withCi,
+          withMirrorFiles: options.withMirrorFiles,
+          dryRun: options.dryRun,
+          force: options.force
+        });
+    const summary = describeOperations(result.operations, process.cwd());
+
+    if (options.mode === "composition") {
+      stdout.write(
+        `Preparing ${result.projectName} (${result.composition.runtime.manifest.name}) with ${result.packageManager}\n`
+      );
+    } else {
+      stdout.write(
+        `Preparing ${result.projectName} (${result.variant.manifest.name}) with ${result.packageManager}\n`
+      );
+    }
+    stdout.write(`${summary}\n`);
+
+    if (options.dryRun) {
+      return;
+    }
+
+    applyOperations(options.targetDir, result.operations);
+    stdout.write(`Done: ${options.targetDir}\n`);
     return;
   }
 

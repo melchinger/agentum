@@ -17,6 +17,7 @@ node scripts/init-repo.js list-profiles
 node scripts/init-repo.js list-runtimes
 node scripts/init-repo.js list-modules --runtime python
 node scripts/init-repo.js list-policies
+node scripts/init-repo.js wizard ../soliCalc
 ```
 
 ## Stack prüfen

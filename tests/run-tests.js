@@ -93,6 +93,22 @@ function createIoCapture() {
   };
 }
 
+function createInteractiveIoCapture(answers) {
+  let buffer = "";
+  return {
+    stdin: { isTTY: true },
+    stdout: {
+      write(chunk) {
+        buffer += String(chunk);
+      }
+    },
+    promptAnswers: answers,
+    read() {
+      return buffer;
+    }
+  };
+}
+
 runTest("lists all supported variants", () => {
   const variants = listVariants(repoRoot).map((entry) => entry.name);
   assert.deepEqual(variants, ["nextjs", "node", "php", "python", "react", "wordpress-plugin"]);
@@ -678,6 +694,41 @@ runAsyncTest("cli validates explains and generates composed projects", async () 
         assert.equal(payload.profile, "saas-web-app");
         assert.equal(payload.runtime, "python");
         assert.ok(payload.modules.includes("fastapi"));
+      });
+  });
+});
+
+runAsyncTest("wizard guides through a desktop app setup", async () => {
+  return withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "soliCalc");
+    const wizardIo = createInteractiveIoCapture([
+      "",
+      "",
+      "desktop-app",
+      "",
+      "",
+      "",
+      "",
+      "n",
+      "n"
+    ]);
+
+    return Promise.resolve()
+      .then(() => runCli(["wizard", targetDir], wizardIo))
+      .then(() => {
+        assert.equal(fs.existsSync(path.join(targetDir, "Cargo.toml")), true);
+        assert.equal(fs.existsSync(path.join(targetDir, "src-tauri", "tauri.conf.json")), true);
+        assert.equal(fs.existsSync(path.join(targetDir, ".env.example")), true);
+
+        const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+        assert.equal(metadata.profile, "desktop-app");
+        assert.equal(metadata.runtime, "rust");
+        assert.deepEqual(metadata.modules, ["tauri", "react", "sqlite"]);
+
+        const envExample = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+        assert.match(envExample, /DATABASE_URL=sqlite:\/\/\/\.\/data\/app\.db/);
+        assert.match(wizardIo.read(), /Available profiles:/);
+        assert.match(wizardIo.read(), /Preparing soliCalc \(rust\) with cargo/);
       });
   });
 });
