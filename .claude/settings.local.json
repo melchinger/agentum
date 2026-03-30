@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/init-repo.js list-profiles)",
+      "Bash(node scripts/init-repo.js explain-stack --profile fullstack-monorepo)",
+      "Read(//tmp/**)",
+      "Bash(node \"D:/codex_workdir/github/melchinger/agentum/scripts/init-repo.js\" new . --profile fullstack-monorepo --project-name \"fullstack-demo\" --with-ci --dry-run)",
+      "Bash(node \"D:/codex_workdir/github/melchinger/agentum/scripts/init-repo.js\" new . --profile fullstack-monorepo --project-name \"fullstack-demo\" --with-ci)",
+      "Bash(rm -rf test-fullstack)",
+      "Bash(node \"D:/codex_workdir/github/melchinger/agentum/scripts/init-repo.js\" new test-fullstack --profile fullstack-monorepo --project-name \"fullstack-demo\" --with-ci)"
+    ]
+  }
+}

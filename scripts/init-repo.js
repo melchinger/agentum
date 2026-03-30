@@ -297,17 +297,33 @@ async function promptForWizard(positionals, flags, io) {
     const profile = await askWithDefault(rl, "Profile (optional)", flags.profile || "");
     const profileManifest = profile ? findByName(profiles, profile, "profile") : null;
 
-    io.stdout.write(`Available runtimes: ${joinNames(runtimes)}\n`);
-    const runtime = await askWithDefault(
-      rl,
-      "Runtime",
-      flags.runtime || profileManifest?.recommendedRuntime || ""
-    );
-    const runtimeManifest = findByName(runtimes, runtime, "runtime");
+    // Handle both single-runtime and multi-runtime profiles
+    let selectedRuntimes = [];
+    if (profileManifest?.runtimes) {
+      // Profile specifies multiple runtimes
+      selectedRuntimes = Array.isArray(profileManifest.runtimes)
+        ? profileManifest.runtimes
+        : [profileManifest.runtimes];
+      io.stdout.write(
+        `Profile specifies runtimes: ${selectedRuntimes.join(", ")}\n`
+      );
+    } else {
+      io.stdout.write(`Available runtimes: ${joinNames(runtimes)}\n`);
+      const runtime = await askWithDefault(
+        rl,
+        "Runtime",
+        flags.runtime || profileManifest?.recommendedRuntime || ""
+      );
+      selectedRuntimes = [runtime];
+    }
 
-    const modulesForRuntime = listModules(repoRoot, { runtime: runtimeManifest.name });
+    // For single runtime, show compatible modules
+    const moduleFilters = selectedRuntimes.length === 1
+      ? { runtime: selectedRuntimes[0] }
+      : {};
+    const modulesForRuntimes = listModules(repoRoot, moduleFilters);
     io.stdout.write(
-      `Available modules for ${runtimeManifest.name}: ${joinNames(modulesForRuntime)}\n`
+      `Available modules: ${joinNames(modulesForRuntimes)}\n`
     );
     const modulesPrompt = profileManifest?.defaultModules?.length
       ? `Additional modules (defaults from profile: ${profileManifest.defaultModules.join(", ")})`
@@ -324,10 +340,11 @@ async function promptForWizard(positionals, flags, io) {
       await askWithDefault(rl, policiesPrompt, flags.policies || "")
     );
 
+    const primaryRuntime = findByName(runtimes, selectedRuntimes[0], "runtime");
     const packageManager = await askWithDefault(
       rl,
       "Package manager",
-      flags["package-manager"] || runtimeManifest.packageManagers[0] || ""
+      flags["package-manager"] || primaryRuntime.packageManagers[0] || ""
     );
     const withCi =
       typeof flags["with-ci"] === "boolean"
@@ -347,7 +364,8 @@ async function promptForWizard(positionals, flags, io) {
       targetDir,
       projectName,
       profile: profile || undefined,
-      runtime,
+      runtimes: selectedRuntimes.length > 1 ? selectedRuntimes : undefined,
+      runtime: selectedRuntimes[0],
       modules,
       policies: selectedPolicies,
       packageManager,
@@ -637,6 +655,7 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
           targetDir: options.targetDir,
           projectName: options.projectName,
           profile: options.profile,
+          runtimes: options.runtimes,
           runtime: options.runtime,
           modules: options.modules,
           policies: options.policies,
@@ -658,8 +677,11 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
     const summary = describeOperations(result.operations, process.cwd());
 
     if (options.mode === "composition") {
+      const runtimes = Array.isArray(result.composition.runtimes)
+        ? result.composition.runtimes.map((r) => r.manifest.name).join(" + ")
+        : result.composition.runtime.manifest.name;
       stdout.write(
-        `Preparing ${result.projectName} (${result.composition.runtime.manifest.name}) with ${result.packageManager}\n`
+        `Preparing ${result.projectName} (${runtimes}) with ${result.packageManager}\n`
       );
     } else {
       stdout.write(
@@ -717,8 +739,11 @@ async function run(argv = process.argv.slice(2), io = { stdin: processStdin, std
     : describeOperations(result.operations, process.cwd());
 
   if (useComposition) {
+    const runtimes = Array.isArray(result.composition.runtimes)
+      ? result.composition.runtimes.map((r) => r.manifest.name).join(" + ")
+      : result.composition.runtime.manifest.name;
     stdout.write(
-      `Preparing ${result.projectName} (${result.composition.runtime.manifest.name}) with ${result.packageManager}\n`
+      `Preparing ${result.projectName} (${runtimes}) with ${result.packageManager}\n`
     );
   } else {
     stdout.write(

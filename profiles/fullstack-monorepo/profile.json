@@ -1,0 +1,22 @@
+{
+  "name": "fullstack-monorepo",
+  "description": "Monorepo with multiple runtimes (frontend + backend). Combines Node.js + Python with shared database.",
+  "runtimes": ["node", "python"],
+  "defaultModules": ["nextjs", "fastapi-monorepo", "postgres", "liquibase"],
+  "recommendedModules": ["mcp-python", "single-container"],
+  "requiredPolicies": ["security-baseline", "ci"],
+  "rules": [
+    {
+      "level": "warning",
+      "when": {
+        "modulesAny": ["sqlite"]
+      },
+      "message": "SQLite is usually not a good primary database for a SaaS profile. Use PostgreSQL for fullstack monorepo."
+    },
+    {
+      "level": "info",
+      "when": {},
+      "message": "This profile creates a monorepo with separate apps/web (Next.js) and apps/api (FastAPI) directories."
+    }
+  ]
+}

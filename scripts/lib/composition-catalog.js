@@ -142,11 +142,29 @@ function ensureModuleClosure(repoRoot, requestedNames) {
 }
 
 function evaluateRuleWhen(context, when = {}) {
-  if (when.runtimeIn && !when.runtimeIn.includes(context.runtime)) {
-    return false;
+  // Handle both single runtime (backward compat) and multiple runtimes
+  const runtimes = context.runtimes || [context.runtime];
+
+  if (when.runtimeIn) {
+    const hasMatch = runtimes.some((rt) => when.runtimeIn.includes(rt));
+    if (!hasMatch) {
+      return false;
+    }
   }
-  if (when.runtimeNotIn && when.runtimeNotIn.includes(context.runtime)) {
-    return false;
+  if (when.runtimeNotIn) {
+    const hasMatch = runtimes.some((rt) => when.runtimeNotIn.includes(rt));
+    if (hasMatch) {
+      return false;
+    }
+  }
+  if (when.runtimIn) {
+    // Handle "runtimes" key for multi-runtime checks
+    const hasAll = when.runtimIn.missing
+      ? runtimes.some((rt) => !when.runtimIn.missing.includes(rt))
+      : true;
+    if (!hasAll) {
+      return false;
+    }
   }
   if (when.profileIn && !when.profileIn.includes(context.profile)) {
     return false;
@@ -168,11 +186,33 @@ function evaluateRuleWhen(context, when = {}) {
 
 function resolveComposition(repoRoot, options = {}) {
   const profile = options.profile ? loadProfile(repoRoot, options.profile) : null;
-  const runtimeName = options.runtime || profile?.manifest.recommendedRuntime;
-  if (!runtimeName) {
-    throw new Error("Composition requires a runtime or a profile with recommendedRuntime.");
+
+  // Support both single runtime and multiple runtimes
+  let runtimes = [];
+  if (options.runtimes) {
+    // Multiple runtimes
+    runtimes = Array.isArray(options.runtimes)
+      ? options.runtimes
+      : normalizeSelection(options.runtimes);
+  } else if (options.runtime) {
+    // Single runtime
+    runtimes = [options.runtime];
+  } else if (profile?.manifest.runtimes) {
+    // Profile specifies multiple runtimes
+    runtimes = Array.isArray(profile.manifest.runtimes)
+      ? profile.manifest.runtimes
+      : normalizeSelection(profile.manifest.runtimes);
+  } else if (profile?.manifest.recommendedRuntime) {
+    // Profile specifies single runtime
+    runtimes = [profile.manifest.recommendedRuntime];
   }
-  const runtime = loadRuntime(repoRoot, runtimeName);
+
+  if (runtimes.length === 0) {
+    throw new Error("Composition requires a runtime or a profile with runtimes/recommendedRuntime.");
+  }
+
+  const runtimeEntities = runtimes.map((name) => loadRuntime(repoRoot, name));
+
   const requestedModules = normalizeSelection([
     ...(profile?.manifest.defaultModules || []),
     ...(options.modules || [])
@@ -192,8 +232,12 @@ function resolveComposition(repoRoot, options = {}) {
   const moduleNames = modules.map((entry) => entry.manifest.name);
 
   for (const moduleEntity of modules) {
-    if (!(moduleEntity.manifest.compatibleRuntimes || []).includes(runtime.manifest.name)) {
-      errors.push(`Module \`${moduleEntity.manifest.name}\` is not compatible with runtime \`${runtime.manifest.name}\`.`);
+    const compatibleRuntimes = moduleEntity.manifest.compatibleRuntimes || [];
+    const isCompatible = runtimes.every((rt) => compatibleRuntimes.includes(rt)) ||
+                         runtimes.some((rt) => compatibleRuntimes.includes(rt));
+
+    if (!isCompatible && compatibleRuntimes.length > 0) {
+      errors.push(`Module \`${moduleEntity.manifest.name}\` is not compatible with runtimes \`${runtimes.join(", ")}\`.`);
     }
     for (const dependency of moduleEntity.manifest.requiresModules || []) {
       if (!moduleNames.includes(dependency)) {
@@ -209,12 +253,15 @@ function resolveComposition(repoRoot, options = {}) {
 
   const ruleContext = {
     profile: profile?.manifest.name || null,
-    runtime: runtime.manifest.name,
+    runtimes: runtimes,
+    runtime: runtimes[0], // For backward compatibility
     modules: moduleNames
   };
   const entitiesWithRules = [
     ...(profile?.manifest.rules ? [{ label: `profile:${profile.manifest.name}`, rules: profile.manifest.rules }] : []),
-    ...(runtime.manifest.rules ? [{ label: `runtime:${runtime.manifest.name}`, rules: runtime.manifest.rules }] : []),
+    ...runtimeEntities
+      .filter((entry) => entry.manifest.rules)
+      .map((entry) => ({ label: `runtime:${entry.manifest.name}`, rules: entry.manifest.rules })),
     ...modules
       .filter((entry) => Array.isArray(entry.manifest.rules))
       .map((entry) => ({ label: `module:${entry.manifest.name}`, rules: entry.manifest.rules }))
@@ -231,7 +278,8 @@ function resolveComposition(repoRoot, options = {}) {
 
   return {
     profile,
-    runtime,
+    runtimes: runtimeEntities,
+    runtime: runtimeEntities[0], // For backward compatibility
     modules,
     policies,
     errors,
@@ -275,15 +323,21 @@ function formatCommands(commandTemplates, variables) {
 
 function buildVariables(options) {
   const projectSlug = slugify(options.projectName);
+  // For backward compatibility, use first runtime as primary
+  const primaryRuntimeName = Array.isArray(options.runtimeNames)
+    ? options.runtimeNames[0]
+    : options.runtimeName;
+
   return {
     PROJECT_NAME: options.projectName,
     PROJECT_SLUG: projectSlug,
-    VARIANT: options.runtimeName,
-    RUNTIME: options.runtimeName,
+    VARIANT: primaryRuntimeName,
+    RUNTIME: primaryRuntimeName,
     PACKAGE_MANAGER: options.packageManager,
     PYTHON_PACKAGE: toPythonPackage(options.projectName),
     PROFILE_NAME: options.profileName || "none",
-    RUNTIME_NAME: options.runtimeName,
+    RUNTIME_NAME: primaryRuntimeName,
+    RUNTIMES_JSON: JSON.stringify(Array.isArray(options.runtimeNames) ? options.runtimeNames : [primaryRuntimeName]),
     MODULES_JSON: JSON.stringify(options.moduleNames),
     POLICIES_JSON: JSON.stringify(options.policyNames),
     SELECTED_STACKS: options.moduleNames.length > 0 ? options.moduleNames.join(", ") : "none selected"
@@ -295,17 +349,29 @@ function buildCompositionAgentsContent(repoRoot, composition, variables) {
     path.join(repoRoot, "templates", "base", "agents", "base.md"),
     "utf8"
   );
+  const runtimes = Array.isArray(composition.runtimes)
+    ? composition.runtimes
+    : [composition.runtime];
+
   const overlay = [
     composition.profile?.overlay,
-    composition.runtime.overlay,
+    ...runtimes.map((r) => r.overlay),
     ...composition.modules.map((entry) => entry.overlay),
     ...composition.policies.map((entry) => entry.overlay)
   ].filter(Boolean).join("\n\n");
+
+  // For multi-runtime, generate commands for each runtime
+  const runtimeCommandsBlocks = runtimes.length > 1
+    ? runtimes.map((runtime) =>
+        `### ${runtime.manifest.language}\n${formatCommands(runtime.manifest.commands, variables)}`
+      ).join("\n\n")
+    : formatCommands(runtimes[0].manifest.commands, variables);
+
   return renderString(baseTemplate, {
     ...variables,
     VARIANT: variables.RUNTIME_NAME,
-    RUNTIME: composition.runtime.manifest.language,
-    COMMANDS_BLOCK: formatCommands(composition.runtime.manifest.commands, variables),
+    RUNTIME: runtimes[0].manifest.language,
+    COMMANDS_BLOCK: runtimeCommandsBlocks,
     STACK_COMMANDS_BLOCK: formatCommands(
       [
         ...composition.modules.flatMap((entry) => entry.manifest.commands || []),
@@ -318,12 +384,17 @@ function buildCompositionAgentsContent(repoRoot, composition, variables) {
 }
 
 function buildCompositionMetadata(composition, variables, options) {
+  const runtimes = Array.isArray(composition.runtimes)
+    ? composition.runtimes.map((r) => r.manifest.name)
+    : [composition.runtime.manifest.name];
+
   return JSON.stringify(
     {
       generator: "agentum",
       projectName: options.projectName,
       profile: composition.profile?.manifest.name || null,
-      runtime: composition.runtime.manifest.name,
+      runtimes: runtimes.length > 1 ? runtimes : undefined,
+      runtime: runtimes[0],
       modules: composition.modules.map((entry) => entry.manifest.name),
       policies: composition.policies.map((entry) => entry.manifest.name),
       packageManager: options.packageManager,
@@ -336,9 +407,13 @@ function buildCompositionMetadata(composition, variables, options) {
 }
 
 function describeComposition(composition) {
+  const runtimes = Array.isArray(composition.runtimes)
+    ? composition.runtimes.map((r) => r.manifest.name).join(", ")
+    : composition.runtime.manifest.name;
+
   const lines = [
     `Profile: ${composition.profile?.manifest.name || "none"}`,
-    `Runtime: ${composition.runtime.manifest.name}`,
+    `Runtime(s): ${runtimes}`,
     `Modules: ${composition.modules.map((entry) => entry.manifest.name).join(", ") || "none"}`,
     `Policies: ${composition.policies.map((entry) => entry.manifest.name).join(", ") || "none"}`
   ];
@@ -362,12 +437,17 @@ function collectCompositionOperations(repoRoot, options) {
   }
 
   const projectName = options.projectName || path.basename(options.targetDir);
-  const packageManager = options.packageManager || composition.runtime.manifest.packageManagers[0];
+  const runtimes = Array.isArray(composition.runtimes)
+    ? composition.runtimes
+    : [composition.runtime];
+  const packageManager = options.packageManager || runtimes[0].manifest.packageManagers[0];
+
   const variables = buildVariables({
     projectName,
     packageManager,
     profileName: composition.profile?.manifest.name || "none",
-    runtimeName: composition.runtime.manifest.name,
+    runtimeName: runtimes[0].manifest.name,
+    runtimeNames: runtimes.map((r) => r.manifest.name),
     moduleNames: composition.modules.map((entry) => entry.manifest.name),
     policyNames: composition.policies.map((entry) => entry.manifest.name)
   });
@@ -375,8 +455,10 @@ function collectCompositionOperations(repoRoot, options) {
   const operations = [
     ...collectTemplateOperations(path.join(repoRoot, "templates", "base", "files"), variables, options.targetDir)
       .filter((entry) => !entry.target.endsWith(`${path.sep}.agentum-template.json`) && !entry.target.endsWith(`${path.sep}ci.yml`)),
-    ...collectDirectoryOperations(composition.runtime.manifest.directories, variables, options.targetDir),
-    ...collectTemplateOperations(path.join(composition.runtime.dir, "files"), variables, options.targetDir),
+    ...runtimes.flatMap((runtime) => [
+      ...collectDirectoryOperations(runtime.manifest.directories, variables, options.targetDir),
+      ...collectTemplateOperations(path.join(runtime.dir, "files"), variables, options.targetDir)
+    ]),
     ...composition.modules.flatMap((entry) => [
       ...collectDirectoryOperations(entry.manifest.directories, variables, options.targetDir),
       ...collectTemplateOperations(path.join(entry.dir, "files"), variables, options.targetDir)
@@ -408,8 +490,9 @@ function collectCompositionOperations(repoRoot, options) {
 
   if (composition.policies.some((entry) => entry.manifest.name === "ci")) {
     const ciTemplate = path.join(repoRoot, "templates", "base", "files", ".github", "workflows", "ci.yml.tmpl");
-    const installCommand = composition.runtime.manifest.commands.find((item) => item.startsWith("install: "));
-    const testCommand = composition.runtime.manifest.commands.find((item) => item.startsWith("test: "));
+    // For multi-runtime, use first runtime commands as primary
+    const installCommand = runtimes[0].manifest.commands.find((item) => item.startsWith("install: "));
+    const testCommand = runtimes[0].manifest.commands.find((item) => item.startsWith("test: "));
     operations.push({
       type: "write",
       target: path.join(options.targetDir, ".github", "workflows", "ci.yml"),
@@ -449,13 +532,13 @@ function compositionDoctor(repoRoot, targetDir) {
   }
 
   const metadata = readJson(metadataPath);
-  if (!metadata.runtime) {
+  if (!metadata.runtime && !metadata.runtimes) {
     return null;
   }
 
   const composition = resolveComposition(repoRoot, {
     profile: metadata.profile || undefined,
-    runtime: metadata.runtime,
+    runtimes: metadata.runtimes || [metadata.runtime],
     modules: metadata.modules || [],
     policies: metadata.policies || []
   });
@@ -466,10 +549,17 @@ function compositionDoctor(repoRoot, targetDir) {
   for (const file of manifest.requiredBaseFiles) {
     results.push({ file, ok: fs.existsSync(path.join(targetDir, file)) });
   }
-  for (const file of composition.runtime.manifest.requiredFiles || []) {
-    const rendered = renderString(file, variables);
-    results.push({ file: rendered, ok: fs.existsSync(path.join(targetDir, rendered)) });
+
+  const runtimes = Array.isArray(composition.runtimes)
+    ? composition.runtimes
+    : [composition.runtime];
+  for (const runtime of runtimes) {
+    for (const file of runtime.manifest.requiredFiles || []) {
+      const rendered = renderString(file, variables);
+      results.push({ file: rendered, ok: fs.existsSync(path.join(targetDir, rendered)) });
+    }
   }
+
   for (const moduleEntity of composition.modules) {
     for (const file of moduleEntity.manifest.requiredFiles || []) {
       const rendered = renderString(file, variables);
@@ -488,10 +578,15 @@ function compositionDoctor(repoRoot, targetDir) {
     }
   }
 
+  const runtimeNames = Array.isArray(metadata.runtimes)
+    ? metadata.runtimes
+    : [metadata.runtime];
+
   return {
     ok: results.every((entry) => entry.ok),
     profile: composition.profile?.manifest.name || null,
-    runtime: composition.runtime.manifest.name,
+    runtimes: runtimeNames.length > 1 ? runtimeNames : undefined,
+    runtime: runtimeNames[0],
     modules: composition.modules.map((entry) => entry.manifest.name),
     policies: composition.policies.map((entry) => entry.manifest.name),
     results

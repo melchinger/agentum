@@ -1,0 +1,22 @@
+{
+  "name": "fastapi-monorepo",
+  "category": "backend",
+  "description": "ASGI HTTP delivery layer for Python services in a monorepo structure",
+  "compatibleRuntimes": ["python"],
+  "directories": [
+    "apps/api/src/{{PYTHON_PACKAGE}}/interfaces/http"
+  ],
+  "requiredFiles": [
+    "apps/api/src/{{PYTHON_PACKAGE}}/interfaces/http/app.py"
+  ],
+  "commands": [
+    "dev: cd apps/api && uv run fastapi dev src/{{PYTHON_PACKAGE}}/interfaces/http/app.py",
+    "serve: cd apps/api && uv run fastapi dev src/{{PYTHON_PACKAGE}}/interfaces/http/app.py"
+  ],
+  "env": [
+    "PYTHONPATH=apps/api/src"
+  ],
+  "detect": {
+    "packageIndicators": ["fastapi"]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "nextjs",
+  "category": "frontend",
+  "description": "Next.js 15 App Router with TypeScript and React",
+  "compatibleRuntimes": ["node"],
+  "directories": [
+    "apps/web/src/app",
+    "apps/web/src/components",
+    "apps/web/src/lib"
+  ],
+  "requiredFiles": [
+    "apps/web/package.json"
+  ],
+  "commands": [
+    "dev: cd apps/web && npm run dev",
+    "build: cd apps/web && npm run build",
+    "test: cd apps/web && npm test",
+    "lint: cd apps/web && npm run lint"
+  ],
+  "env": [
+    "NEXT_PUBLIC_API_URL=http://localhost:8000"
+  ],
+  "detect": {
+    "packageIndicators": ["next", "react"]
+  }
+}
