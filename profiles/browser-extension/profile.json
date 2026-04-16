@@ -1,0 +1,21 @@
+{
+  "name": "browser-extension",
+  "description": "Local-first browser extension (Chrome Manifest V3) with TypeScript and Vite.",
+  "recommendedRuntime": "node",
+  "defaultModules": ["chrome-mv3"],
+  "requiredPolicies": ["security-baseline"],
+  "rules": [
+    {
+      "level": "warning",
+      "when": {
+        "modulesMissing": ["chrome-mv3"]
+      },
+      "message": "Browser extension projects should include an extension shell module such as chrome-mv3."
+    },
+    {
+      "level": "info",
+      "when": {},
+      "message": "Prefer optional host_permissions and request them at runtime via chrome.permissions.request()."
+    }
+  ]
+}

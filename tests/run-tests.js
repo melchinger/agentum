@@ -228,6 +228,52 @@ runTest("generates a composed python repository from profile runtime modules and
   });
 });
 
+runTest("generates a composed chrome-mv3 browser extension repository", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "browser-ext");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Browser Ext",
+      profile: "browser-extension",
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // Extension-specific files from the chrome-mv3 module must land at repo root.
+    assert.equal(fs.existsSync(path.join(targetDir, "manifest.json")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "vite.config.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "tsconfig.json")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "background", "background.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "popup", "popup.html")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "popup", "popup.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "shared", "messages.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "public", "icons", "README.md")), true);
+
+    // The MV3 manifest must name the project and declare an MV3 service worker.
+    const manifest = JSON.parse(fs.readFileSync(path.join(targetDir, "manifest.json"), "utf8"));
+    assert.equal(manifest.manifest_version, 3);
+    assert.equal(manifest.name, "Browser Ext");
+    assert.equal(manifest.background.service_worker, "src/background/background.ts");
+
+    // The module must override the runtime's stub package.json so vite/crxjs are present.
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.ok(pkg.devDependencies["@crxjs/vite-plugin"]);
+    assert.ok(pkg.devDependencies.vite);
+    assert.equal(pkg.scripts.dev, "vite");
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.equal(metadata.profile, "browser-extension");
+    assert.equal(metadata.runtime, "node");
+    assert.deepEqual(metadata.modules, ["chrome-mv3"]);
+    assert.ok(metadata.policies.includes("security-baseline"));
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: Chrome MV3 Extension/);
+    assert.match(agents, /Profile: Browser Extension/);
+  });
+});
+
 runTest("generates a composed tauri desktop repository", () => {
   withTempDir((tempDir) => {
     const targetDir = path.join(tempDir, "tauri-desktop");

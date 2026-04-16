@@ -27,6 +27,10 @@
     {
       "name": "deploy",
       "description": "Deployment packaging and runtime topology."
+    },
+    {
+      "name": "extension",
+      "description": "Browser extension shell and WebExtension packaging surface."
     }
   ]
 }

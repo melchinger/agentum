@@ -1,0 +1,22 @@
+/**
+ * Service worker entry point for {{PROJECT_NAME}}.
+ *
+ * Remember: MV3 service workers are non-persistent and have no DOM.
+ * Persist state through chrome.storage.*; delegate DOM-bound APIs
+ * (clipboard, audio, DOMParser) to an offscreen document.
+ */
+
+chrome.runtime.onInstalled.addListener((details) => {
+  console.log("[{{PROJECT_SLUG}}] installed", details.reason);
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  console.log("[{{PROJECT_SLUG}}] startup");
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // Replace with a typed discriminated-union message handler.
+  console.log("[{{PROJECT_SLUG}}] message", message);
+  sendResponse({ ok: true });
+  return true;
+});
