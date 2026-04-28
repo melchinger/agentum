@@ -1,20 +1,18 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+  collectDirectoryOperations,
+  collectTemplateOperations,
   ensureDirectory,
+  formatCommands,
   isDirectoryEmpty,
+  loadManifest,
   readJson,
   renderString,
-  resolveTemplateTarget,
   slugify,
-  toPythonPackage,
-  walkTemplateFiles
+  toPythonPackage
 } = require("./template-utils");
 const { compositionDoctor } = require("./composition-catalog");
-
-function loadManifest(repoRoot) {
-  return readJson(path.join(repoRoot, "templates", "manifest.json"));
-}
 
 function loadStacksManifest(repoRoot) {
   return readJson(path.join(repoRoot, "stacks", "manifest.json"));
@@ -124,20 +122,8 @@ function buildVariables({ projectName, variant, packageManager, withCi, withMirr
   };
 }
 
-function formatCommands(commandTemplates, variables) {
-  return commandTemplates
-    .map((command) => {
-      const [label, template] = command.split(": ");
-      return `- \`${label}\`: \`${renderString(template, variables)}\``;
-    })
-    .join("\n");
-}
-
 function buildStackCommands(stacks, variables) {
   const commandTemplates = stacks.flatMap((stack) => stack.manifest.commands || []);
-  if (commandTemplates.length === 0) {
-    return "- None defined.";
-  }
   return formatCommands(commandTemplates, variables);
 }
 
@@ -154,27 +140,6 @@ function buildAgentsContent(repoRoot, variant, stacks, variables) {
     STACK_COMMANDS_BLOCK: buildStackCommands(stacks, variables),
     STACK_OVERLAY: [variant.overlay, stackOverlay].filter(Boolean).join("\n\n")
   });
-}
-
-function collectTemplateOperations(templateRoot, variables, targetDir, options = {}) {
-  if (!fs.existsSync(templateRoot)) {
-    return [];
-  }
-  return walkTemplateFiles(templateRoot)
-    .filter((filePath) => !options.exclude?.includes(path.relative(templateRoot, filePath)))
-    .map((filePath) => {
-    const relativeTarget = resolveTemplateTarget(templateRoot, filePath, variables);
-    const absoluteTarget = path.join(targetDir, relativeTarget);
-    const content = renderString(fs.readFileSync(filePath, "utf8"), variables);
-    return { type: "write", target: absoluteTarget, content };
-  });
-}
-
-function collectDirectoryOperations(directories, variables, targetDir) {
-  return directories.map((directory) => ({
-    type: "mkdir",
-    target: path.join(targetDir, renderString(directory, variables))
-  }));
 }
 
 function collectOperations(repoRoot, options) {

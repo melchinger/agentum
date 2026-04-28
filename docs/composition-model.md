@@ -4,9 +4,9 @@ Agentum now supports a second, more composable catalog alongside legacy variants
 
 ## Building Blocks
 
-- `profiles/` describe product goals such as `saas-web-app`, `mcp-service`, and `desktop-app`.
+- `profiles/` describe product goals such as `saas-web-app`, `mcp-service`, `desktop-app`, `desktop-app-svelte`, and `desktop-app-sveltekit`.
 - `runtimes/` define the core language/runtime skeleton such as `python`, `node`, or `rust`.
-- `modules/` add technical capabilities such as `fastapi`, `htmx`, `postgres`, `alembic`, `playwright-pdf`, or `tauri`.
+- `modules/` add technical capabilities such as `fastapi`, `htmx`, `postgres`, `alembic`, `playwright-pdf`, `tauri`, `react`, `nextjs`, `svelte`, `sveltekit`, or `sveltekit-static`.
 - `policies/` add cross-cutting repository defaults such as `ci`, `mirror-instructions`, and `security-baseline`.
 
 ## Typical Commands
@@ -24,6 +24,8 @@ node scripts/init-repo.js explain-stack --profile desktop-app
 ```bash
 node scripts/init-repo.js new ../saas-app --profile saas-web-app --runtime python --project-name saas-app --modules htmx,mcp-python,playwright-pdf,single-container --policies mirror-instructions --with-ci
 node scripts/init-repo.js new ../desktop-app --profile desktop-app --project-name desktop-app
+node scripts/init-repo.js new ../desktop-svelte --profile desktop-app-svelte --project-name desktop-svelte
+node scripts/init-repo.js new ../desktop-sveltekit --profile desktop-app-sveltekit --project-name desktop-sveltekit
 ```
 
 ## Design Notes

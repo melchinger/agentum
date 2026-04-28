@@ -13,6 +13,8 @@ Nutze das Kompositionsmodell, wenn du bewusst einen Stack zusammensetzen, validi
 
 - `saas-web-app + python + fastapi + postgres + alembic`
 - `desktop-app + rust + tauri + react + sqlite`
+- `desktop-app-svelte + rust + tauri + svelte + sqlite`
+- `desktop-app-sveltekit + rust + tauri + sveltekit-static + sqlite`
 
 ## Voraussetzungen
 
@@ -117,11 +119,19 @@ SaaS-Beispiel:
 node scripts/init-repo.js new ../saas-app --profile saas-web-app --runtime python --project-name saas-app --modules htmx,mcp-python,playwright-pdf,single-container --policies mirror-instructions --with-ci
 ```
 
-Desktop/Tauri-Beispiel:
+Desktop/Tauri-Beispiele:
 
 ```bash
 node scripts/init-repo.js new ../desktop-app --profile desktop-app --project-name desktop-app
+node scripts/init-repo.js new ../desktop-svelte --profile desktop-app-svelte --project-name desktop-svelte
+node scripts/init-repo.js new ../desktop-sveltekit --profile desktop-app-sveltekit --project-name desktop-sveltekit
 ```
+
+Frontend-Wahl bei Tauri-Apps:
+
+- `desktop-app` — React (bare SPA, Default)
+- `desktop-app-svelte` — Svelte (bare SPA, kein Routing)
+- `desktop-app-sveltekit` — SvelteKit + adapter-static (Routing, Prerender)
 
 Hinweise:
 

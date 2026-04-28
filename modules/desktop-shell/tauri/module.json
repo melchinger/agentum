@@ -3,7 +3,6 @@
   "category": "desktop-shell",
   "description": "Cross-platform desktop shell with Rust core and web UI.",
   "compatibleRuntimes": ["rust"],
-  "requiresModules": ["react"],
   "directories": [
     "src-tauri/src/commands",
     "src-tauri/src/application",

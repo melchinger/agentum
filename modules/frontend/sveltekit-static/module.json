@@ -1,0 +1,23 @@
+{
+  "name": "sveltekit-static",
+  "category": "frontend",
+  "description": "SvelteKit with adapter-static for Tauri or CDN-hosted frontends. Prerendered, no server runtime.",
+  "compatibleRuntimes": ["node", "rust"],
+  "directories": [
+    "src/routes",
+    "src/lib"
+  ],
+  "requiredFiles": [
+    "src/app.html",
+    "svelte.config.js",
+    "package.json"
+  ],
+  "commands": [
+    "dev: npm run dev",
+    "build: npm run build",
+    "preview: npm run preview"
+  ],
+  "detect": {
+    "packageIndicators": ["@sveltejs/adapter-static"]
+  }
+}

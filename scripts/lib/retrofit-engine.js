@@ -209,8 +209,17 @@ function detectVariant(repoRoot, targetDir) {
     .sort((left, right) => right.score - left.score);
   const top = candidates[0];
   const second = candidates[1];
+  // Confidence reflects how clearly the top candidate beats its closest rival.
+  // A 2-point lead floors at 0.35 (ambiguous, still worth showing) and a 4-point
+  // lead caps near 0.98 (effectively certain). The +2 offset prevents a 1-point
+  // gap from looking too confident; the /6 normaliser was tuned against the
+  // observed score range across the existing variants (0–6).
   const confidence =
-    !top || top.score <= 0 ? 0 : !second ? 1 : Math.max(0.35, Math.min(0.98, (top.score - second.score + 2) / 6));
+    !top || top.score <= 0
+      ? 0
+      : !second
+        ? 1
+        : Math.max(0.35, Math.min(0.98, (top.score - second.score + 2) / 6));
 
   return {
     detectedVariant: top && top.score > 0 ? top.name : null,

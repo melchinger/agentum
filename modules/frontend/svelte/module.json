@@ -1,0 +1,15 @@
+{
+  "name": "svelte",
+  "category": "frontend",
+  "description": "Svelte SPA frontend with a minimal Vite-style structure.",
+  "compatibleRuntimes": ["node", "rust"],
+  "directories": [
+    "src/ui"
+  ],
+  "requiredFiles": [
+    "src/ui/App.svelte"
+  ],
+  "detect": {
+    "packageIndicators": ["svelte"]
+  }
+}
