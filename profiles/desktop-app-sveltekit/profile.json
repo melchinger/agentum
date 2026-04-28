@@ -1,0 +1,21 @@
+{
+  "name": "desktop-app-sveltekit",
+  "description": "Cross-platform desktop application with a routed, prerendered SvelteKit frontend (adapter-static).",
+  "recommendedRuntime": "rust",
+  "defaultModules": ["tauri", "sveltekit-static", "sqlite"],
+  "requiredPolicies": ["security-baseline"],
+  "rules": [
+    {
+      "level": "info",
+      "when": {
+        "modulesMissing": ["sqlite"]
+      },
+      "message": "Desktop apps often benefit from a local-first storage module."
+    },
+    {
+      "level": "info",
+      "when": {},
+      "message": "Frontend is SvelteKit with adapter-static. All routes prerender at build time — do not import from $app/server or $env/static/private."
+    }
+  ]
+}

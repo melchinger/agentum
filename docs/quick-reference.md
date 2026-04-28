@@ -32,7 +32,15 @@ node scripts/init-repo.js explain-stack --profile desktop-app
 ```bash
 node scripts/init-repo.js new ../saas-app --profile saas-web-app --runtime python --project-name saas-app --modules htmx,mcp-python,playwright-pdf,single-container --policies mirror-instructions --with-ci
 node scripts/init-repo.js new ../desktop-app --profile desktop-app --project-name desktop-app
+node scripts/init-repo.js new ../desktop-svelte --profile desktop-app-svelte --project-name desktop-svelte
+node scripts/init-repo.js new ../desktop-sveltekit --profile desktop-app-sveltekit --project-name desktop-sveltekit
 ```
+
+Frontend-Wahl bei Tauri-Apps:
+
+- `desktop-app` → React (bare SPA, Default)
+- `desktop-app-svelte` → Svelte (bare SPA, kein Routing)
+- `desktop-app-sveltekit` → SvelteKit + adapter-static (Routing, Prerender)
 
 ## Bestehendes Repo sicher nachrüsten
 

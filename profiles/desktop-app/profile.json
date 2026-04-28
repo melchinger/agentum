@@ -11,6 +11,11 @@
         "modulesMissing": ["sqlite"]
       },
       "message": "Desktop apps often benefit from a local-first storage module."
+    },
+    {
+      "level": "info",
+      "when": {},
+      "message": "For a Svelte frontend use the desktop-app-svelte (bare SPA) or desktop-app-sveltekit (routed, prerendered) profile instead — mixing this profile with svelte modules ships both react and svelte."
     }
   ]
 }

@@ -252,6 +252,87 @@ runTest("generates a composed tauri desktop repository", () => {
   });
 });
 
+runTest("generates a composed tauri+svelte desktop repository", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "tauri-svelte");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Svelte Desktop",
+      profile: "desktop-app-svelte",
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    assert.equal(fs.existsSync(path.join(targetDir, "Cargo.toml")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "ui", "App.svelte")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src-tauri", "tauri.conf.json")), true);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.equal(metadata.runtime, "rust");
+    assert.deepEqual(metadata.modules, ["tauri", "svelte", "sqlite"]);
+  });
+});
+
+runTest("generates a composed tauri+sveltekit desktop repository", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "tauri-sveltekit");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SvelteKit Desktop",
+      profile: "desktop-app-sveltekit",
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    assert.equal(fs.existsSync(path.join(targetDir, "Cargo.toml")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "svelte.config.js")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "app.html")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "routes", "+page.svelte")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "routes", "+layout.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src-tauri", "tauri.conf.json")), true);
+
+    const svelteConfig = fs.readFileSync(path.join(targetDir, "svelte.config.js"), "utf8");
+    assert.match(svelteConfig, /pages: "dist"/);
+    assert.match(svelteConfig, /adapter-static/);
+
+    const tauriConfig = JSON.parse(fs.readFileSync(path.join(targetDir, "src-tauri", "tauri.conf.json"), "utf8"));
+    assert.equal(tauriConfig.build.frontendDist, "../dist");
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.deepEqual(metadata.modules, ["tauri", "sveltekit-static", "sqlite"]);
+  });
+});
+
+runTest("desktop-app-svelte profile resolves with rust runtime", () => {
+  const composition = resolveComposition(repoRoot, { profile: "desktop-app-svelte" });
+  assert.equal(composition.runtime.manifest.name, "rust");
+  assert.deepEqual(
+    composition.modules.map((entry) => entry.manifest.name),
+    ["tauri", "svelte", "sqlite"]
+  );
+  assert.deepEqual(composition.errors, []);
+});
+
+runTest("desktop-app-sveltekit profile resolves with rust runtime", () => {
+  const composition = resolveComposition(repoRoot, { profile: "desktop-app-sveltekit" });
+  assert.equal(composition.runtime.manifest.name, "rust");
+  assert.deepEqual(
+    composition.modules.map((entry) => entry.manifest.name),
+    ["tauri", "sveltekit-static", "sqlite"]
+  );
+  assert.deepEqual(composition.errors, []);
+});
+
+runTest("tauri module accepts non-react frontends without errors", () => {
+  const composition = resolveComposition(repoRoot, {
+    runtime: "rust",
+    modules: ["tauri", "svelte"]
+  });
+  assert.deepEqual(composition.errors, []);
+});
+
 runTest("generates variant specific python package paths", () => {
   withTempDir((tempDir) => {
     const targetDir = path.join(tempDir, "python-app");

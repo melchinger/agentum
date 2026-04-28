@@ -1,0 +1,22 @@
+{
+  "name": "desktop-app-svelte",
+  "description": "Cross-platform desktop application with a minimal Svelte SPA frontend.",
+  "recommendedRuntime": "rust",
+  "defaultModules": ["tauri", "svelte", "sqlite"],
+  "recommendedModules": ["sveltekit-static"],
+  "requiredPolicies": ["security-baseline"],
+  "rules": [
+    {
+      "level": "info",
+      "when": {
+        "modulesMissing": ["sqlite"]
+      },
+      "message": "Desktop apps often benefit from a local-first storage module."
+    },
+    {
+      "level": "info",
+      "when": {},
+      "message": "If you need routing or layouts, swap svelte for sveltekit-static (use the desktop-app-sveltekit profile or compose manually)."
+    }
+  ]
+}

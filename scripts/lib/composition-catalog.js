@@ -1,18 +1,16 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+  collectDirectoryOperations,
+  collectTemplateOperations,
   ensureDirectory,
+  formatCommands,
+  loadManifest,
   readJson,
   renderString,
-  resolveTemplateTarget,
   slugify,
-  toPythonPackage,
-  walkTemplateFiles
+  toPythonPackage
 } = require("./template-utils");
-
-function loadManifest(repoRoot) {
-  return readJson(path.join(repoRoot, "templates", "manifest.json"));
-}
 
 function loadEntity(repoRoot, relativeDir, manifestFile, label) {
   const entityDir = path.join(repoRoot, relativeDir);
@@ -157,15 +155,6 @@ function evaluateRuleWhen(context, when = {}) {
       return false;
     }
   }
-  if (when.runtimIn) {
-    // Handle "runtimes" key for multi-runtime checks
-    const hasAll = when.runtimIn.missing
-      ? runtimes.some((rt) => !when.runtimIn.missing.includes(rt))
-      : true;
-    if (!hasAll) {
-      return false;
-    }
-  }
   if (when.profileIn && !when.profileIn.includes(context.profile)) {
     return false;
   }
@@ -286,39 +275,6 @@ function resolveComposition(repoRoot, options = {}) {
     warnings,
     info
   };
-}
-
-function collectTemplateOperations(templateRoot, variables, targetDir) {
-  if (!fs.existsSync(templateRoot)) {
-    return [];
-  }
-  return walkTemplateFiles(templateRoot).map((filePath) => {
-    const relativeTarget = resolveTemplateTarget(templateRoot, filePath, variables);
-    return {
-      type: "write",
-      target: path.join(targetDir, relativeTarget),
-      content: renderString(fs.readFileSync(filePath, "utf8"), variables)
-    };
-  });
-}
-
-function collectDirectoryOperations(directories, variables, targetDir) {
-  return (directories || []).map((directory) => ({
-    type: "mkdir",
-    target: path.join(targetDir, renderString(directory, variables))
-  }));
-}
-
-function formatCommands(commandTemplates, variables) {
-  if (!commandTemplates || commandTemplates.length === 0) {
-    return "- None defined.";
-  }
-  return commandTemplates
-    .map((command) => {
-      const [label, template] = command.split(": ");
-      return `- \`${label}\`: \`${renderString(template, variables)}\``;
-    })
-    .join("\n");
 }
 
 function buildVariables(options) {

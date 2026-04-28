@@ -1,0 +1,27 @@
+{
+  "name": "sveltekit",
+  "category": "frontend",
+  "description": "SvelteKit with adapter-node for SSR-capable web apps in a monorepo layout.",
+  "compatibleRuntimes": ["node"],
+  "directories": [
+    "apps/web/src/routes",
+    "apps/web/src/lib"
+  ],
+  "requiredFiles": [
+    "apps/web/package.json",
+    "apps/web/svelte.config.js",
+    "apps/web/src/app.html"
+  ],
+  "commands": [
+    "dev: cd apps/web && npm run dev",
+    "build: cd apps/web && npm run build",
+    "test: cd apps/web && npm test",
+    "lint: cd apps/web && npm run lint"
+  ],
+  "env": [
+    "PUBLIC_API_URL=http://localhost:8000"
+  ],
+  "detect": {
+    "packageIndicators": ["@sveltejs/kit"]
+  }
+}

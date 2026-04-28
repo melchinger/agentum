@@ -63,9 +63,52 @@ function isDirectoryEmpty(targetPath) {
   return fs.readdirSync(targetPath).length === 0;
 }
 
+function loadManifest(repoRoot) {
+  return readJson(path.join(repoRoot, "templates", "manifest.json"));
+}
+
+function collectTemplateOperations(templateRoot, variables, targetDir, options = {}) {
+  if (!fs.existsSync(templateRoot)) {
+    return [];
+  }
+  return walkTemplateFiles(templateRoot)
+    .filter((filePath) => !options.exclude?.includes(path.relative(templateRoot, filePath)))
+    .map((filePath) => {
+      const relativeTarget = resolveTemplateTarget(templateRoot, filePath, variables);
+      return {
+        type: "write",
+        target: path.join(targetDir, relativeTarget),
+        content: renderString(fs.readFileSync(filePath, "utf8"), variables)
+      };
+    });
+}
+
+function collectDirectoryOperations(directories, variables, targetDir) {
+  return (directories || []).map((directory) => ({
+    type: "mkdir",
+    target: path.join(targetDir, renderString(directory, variables))
+  }));
+}
+
+function formatCommands(commandTemplates, variables) {
+  if (!commandTemplates || commandTemplates.length === 0) {
+    return "- None defined.";
+  }
+  return commandTemplates
+    .map((command) => {
+      const [label, template] = command.split(": ");
+      return `- \`${label}\`: \`${renderString(template, variables)}\``;
+    })
+    .join("\n");
+}
+
 module.exports = {
+  collectDirectoryOperations,
+  collectTemplateOperations,
   ensureDirectory,
+  formatCommands,
   isDirectoryEmpty,
+  loadManifest,
   readJson,
   renderString,
   resolveTemplateTarget,
