@@ -33,7 +33,7 @@ node scripts/init-repo.js list-profiles
 node scripts/init-repo.js list-runtimes
 node scripts/init-repo.js list-modules --runtime python
 node scripts/init-repo.js validate-stack --profile saas-web-app --runtime python --modules htmx,mcp-python,playwright-pdf,single-container --with-ci
-node scripts/init-repo.js wizard ../soliCalc
+node scripts/init-repo.js wizard ../myApp
 ```
 
 Legacy-Repo erzeugen:
