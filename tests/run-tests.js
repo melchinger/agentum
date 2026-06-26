@@ -216,7 +216,7 @@ runTest("generates a composed python repository from profile runtime modules and
     const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
     assert.equal(metadata.profile, "saas-web-app");
     assert.equal(metadata.runtime, "python");
-    assert.deepEqual(metadata.policies, ["security-baseline", "ci", "mirror-instructions"]);
+    assert.deepEqual(metadata.policies, ["security-baseline", "ci", "privacy-baseline", "performance-baseline", "mirror-instructions"]);
 
     const envExample = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
     assert.match(envExample, /DATABASE_URL=postgresql:\/\/app:app@localhost:5432\/saas-python/);
@@ -271,6 +271,104 @@ runTest("generates a composed chrome-mv3 browser extension repository", () => {
     const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
     assert.match(agents, /Module: Chrome MV3 Extension/);
     assert.match(agents, /Profile: Browser Extension/);
+  });
+});
+
+runTest("generates a composed boardgame.io game repository", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "board-game");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "My Card Game",
+      profile: "board-game",
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // Engine files from the boardgame-io-core module (the stack anchor).
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "game", "game.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "game", "moves.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "tests", "game.test.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "tsconfig.json")), true);
+
+    // Server + React client come from the profile's default modules.
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "server", "index.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "server", "storage.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "client", "App.tsx")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "client", "Board.tsx")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "index.html")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "vite.config.ts")), true);
+
+    // The anchor package.json must carry the full stack: engine + React toolchain.
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.ok(pkg.dependencies["boardgame.io"]);
+    assert.ok(pkg.dependencies.react);
+    assert.equal(pkg.scripts.test, "vitest run");
+    assert.equal(pkg.scripts.serve, "tsx watch src/server/index.ts");
+
+    // The rendered game must name the project slug and keep secret state filtered.
+    const gameSource = fs.readFileSync(path.join(targetDir, "src", "game", "game.ts"), "utf8");
+    assert.match(gameSource, /name: 'my-card-game'/);
+    assert.match(gameSource, /PlayerView\.STRIP_SECRETS/);
+
+    // The server must whitelist origins and wire env-selected persistence.
+    const serverSource = fs.readFileSync(path.join(targetDir, "src", "server", "index.ts"), "utf8");
+    assert.match(serverSource, /Origins\.LOCALHOST/);
+    assert.match(serverSource, /db: await createStorage\(\)/);
+
+    // The storage adapter must offer a persistent FlatFile path, not in-memory only.
+    const storageSource = fs.readFileSync(path.join(targetDir, "src", "server", "storage.ts"), "utf8");
+    assert.match(storageSource, /FlatFile/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.equal(metadata.profile, "board-game");
+    assert.equal(metadata.runtime, "node");
+    assert.deepEqual(metadata.modules, ["boardgame-io-server", "boardgame-io-react", "boardgame-io-core"]);
+    assert.ok(metadata.policies.includes("game-fairness-baseline"));
+
+    // The fairness policy must materialise as a governance doc.
+    assert.equal(
+      fs.existsSync(path.join(targetDir, "docs", "policies", "game-fairness-baseline.md")),
+      true
+    );
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: boardgame.io Core/);
+    assert.match(agents, /Module: boardgame.io Server/);
+    assert.match(agents, /Module: boardgame.io React Client/);
+    assert.match(agents, /Profile: Board Game/);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+    assert.equal(doctorResult.profile, "board-game");
+  });
+});
+
+runTest("composes the optional boardgame.io bot module with ai.enumerate", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "board-game-bot");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Bot Arena",
+      profile: "board-game",
+      modules: ["boardgame-io-bot"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "ai", "enumerate.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "ai", "play-bot.ts")), true);
+
+    const enumerateSource = fs.readFileSync(path.join(targetDir, "src", "ai", "enumerate.ts"), "utf8");
+    assert.match(enumerateSource, /export function enumerate/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.ok(metadata.modules.includes("boardgame-io-bot"));
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: boardgame.io Bots/);
   });
 });
 

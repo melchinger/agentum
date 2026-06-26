@@ -3,7 +3,7 @@
   "description": "Local-first browser extension (Chrome Manifest V3) with TypeScript and Vite.",
   "recommendedRuntime": "node",
   "defaultModules": ["chrome-mv3"],
-  "requiredPolicies": ["security-baseline"],
+  "requiredPolicies": ["security-baseline", "privacy-baseline"],
   "rules": [
     {
       "level": "warning",

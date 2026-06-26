@@ -1,0 +1,11 @@
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { App } from './App';
+
+// playerID binds this browser to a seat. In a real lobby this comes from the
+// match credentials, not a hard-coded string.
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App playerID="0" />
+  </StrictMode>,
+);

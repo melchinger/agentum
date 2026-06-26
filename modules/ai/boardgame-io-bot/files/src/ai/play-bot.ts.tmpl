@@ -1,0 +1,27 @@
+import { Client } from 'boardgame.io/client';
+import { Local } from 'boardgame.io/multiplayer';
+import { MCTSBot } from 'boardgame.io/ai';
+import { game } from '../game/game';
+import { enumerate } from './enumerate';
+
+/**
+ * Run a headless match where an MCTSBot plays a seat. Useful for balancing and
+ * regression tests. Keep the seed fixed so the run is reproducible.
+ *
+ * Requires the game to expose `ai: { enumerate }` (see ./enumerate.ts).
+ */
+export function botClientForSeat(playerID: string) {
+  return Client({
+    game: { ...game, ai: { enumerate } },
+    multiplayer: Local({
+      bots: { [playerID]: MCTSBot },
+    }),
+    playerID,
+  });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const client = botClientForSeat('1');
+  client.start();
+  console.log('Bot client started for player 1.');
+}

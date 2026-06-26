@@ -1,0 +1,25 @@
+import { describe, it, expect } from 'vitest';
+import { Client } from 'boardgame.io/client';
+import { game } from '../src/game/game';
+
+describe('{{PROJECT_NAME}} game', () => {
+  it('should reject claiming an occupied cell', () => {
+    const client = Client({ game, numPlayers: 2 });
+
+    client.moves.claimCell(0); // player "0" claims cell 0
+    const owner = client.getState()!.G.cells[0];
+
+    client.moves.claimCell(0); // player "1" tries the same cell -> INVALID_MOVE
+    expect(client.getState()!.G.cells[0]).toBe(owner);
+  });
+
+  it('should end in a draw when every cell is claimed', () => {
+    const client = Client({ game, numPlayers: 2 });
+
+    for (let id = 0; id < 9; id += 1) {
+      client.moves.claimCell(id);
+    }
+
+    expect(client.getState()!.ctx.gameover).toEqual({ draw: true });
+  });
+});

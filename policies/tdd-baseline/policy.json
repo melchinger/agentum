@@ -1,0 +1,6 @@
+{
+  "name": "tdd-baseline",
+  "description": "Zwingt Agenten zur Test-First-Methodik (Red-Green-Refactor) und definiert Coverage-Standards.",
+  "type": "policy",
+  "version": "1.0.0"
+}

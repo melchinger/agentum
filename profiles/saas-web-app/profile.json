@@ -4,7 +4,7 @@
   "recommendedRuntime": "python",
   "defaultModules": ["fastapi", "postgres", "alembic"],
   "recommendedModules": ["htmx"],
-  "requiredPolicies": ["security-baseline", "ci"],
+  "requiredPolicies": ["security-baseline", "ci", "privacy-baseline", "performance-baseline"],
   "rules": [
     {
       "level": "warning",

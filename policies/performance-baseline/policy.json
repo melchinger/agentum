@@ -1,0 +1,6 @@
+{
+  "name": "performance-baseline",
+  "description": "Zwingende Performance-Vorgaben, Budgets und Anti-Pattern-Checks für Scaffold- und Refactoring-Prozesse.",
+  "type": "policy",
+  "version": "1.0.0"
+}

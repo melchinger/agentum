@@ -1,0 +1,18 @@
+{
+  "name": "single-container-fullstack",
+  "category": "deploy",
+  "description": "Single Docker container for fullstack monorepo (Next.js + FastAPI)",
+  "compatibleRuntimes": ["node", "python"],
+  "requiredFiles": [
+    "Dockerfile",
+    "docker-compose.yml"
+  ],
+  "implies": ["nextjs", "fastapi-monorepo"],
+  "rules": [
+    {
+      "level": "info",
+      "when": {},
+      "message": "Dockerfile uses multi-stage build: Node.js builds Next.js, Python runs FastAPI on port 8000. Next.js output available at /app/public/.next"
+    }
+  ]
+}
