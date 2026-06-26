@@ -1,0 +1,20 @@
+import { randomUUID } from 'node:crypto';
+import type { Role } from '../shared/types';
+
+/**
+ * Trivial in-memory token store. In production this is your real auth/session
+ * service — the point is that the SERVER, not the client, decides the role.
+ * Never trust a role claimed in a client payload.
+ */
+const tokens = new Map<string, { sessionId: string; role: Role }>();
+
+/** Issue a token for a seat. Call this from your "create/join session" flow. */
+export function issueToken(sessionId: string, role: Role): string {
+  const token = randomUUID();
+  tokens.set(token, { sessionId, role });
+  return token;
+}
+
+export function resolveToken(token: unknown): { sessionId: string; role: Role } | undefined {
+  return typeof token === 'string' ? tokens.get(token) : undefined;
+}

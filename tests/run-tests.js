@@ -372,6 +372,62 @@ runTest("composes the optional boardgame.io bot module with ai.enumerate", () =>
   });
 });
 
+runTest("generates a composed realtime-session repository", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "realtime-session");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Card Coaching",
+      profile: "realtime-session",
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // Server (anchor) + shared state machine + React client.
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "shared", "types.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "server", "session.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "server", "index.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "client", "App.tsx")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "tests", "session.test.ts")), true);
+
+    // The anchor package.json must carry Socket.IO (server + client) and the React toolchain.
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.ok(pkg.dependencies["socket.io"]);
+    assert.ok(pkg.dependencies["socket.io-client"]);
+    assert.ok(pkg.dependencies.react);
+
+    // The draw must be server-side and crypto-fair (randomInt from node:crypto).
+    const sessionSource = fs.readFileSync(path.join(targetDir, "src", "server", "session.ts"), "utf8");
+    assert.match(sessionSource, /from 'node:crypto'/);
+    assert.match(sessionSource, /randomInt\(/);
+
+    // Identity must be server-trusted via a token middleware.
+    const serverSource = fs.readFileSync(path.join(targetDir, "src", "server", "index.ts"), "utf8");
+    assert.match(serverSource, /io\.use\(/);
+    assert.match(serverSource, /resolveToken/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.equal(metadata.profile, "realtime-session");
+    assert.deepEqual(metadata.modules, ["socketio-session", "socketio-react"]);
+    assert.ok(metadata.policies.includes("realtime-authority-baseline"));
+
+    assert.equal(
+      fs.existsSync(path.join(targetDir, "docs", "policies", "realtime-authority-baseline.md")),
+      true
+    );
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: Socket.IO Session Server/);
+    assert.match(agents, /Module: Socket.IO React Client/);
+    assert.match(agents, /Profile: Realtime Session/);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+    assert.equal(doctorResult.profile, "realtime-session");
+  });
+});
+
 runTest("generates a composed tauri desktop repository", () => {
   withTempDir((tempDir) => {
     const targetDir = path.join(tempDir, "tauri-desktop");

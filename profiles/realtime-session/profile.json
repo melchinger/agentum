@@ -1,0 +1,22 @@
+{
+  "name": "realtime-session",
+  "description": "Two-party, real-time, role-asymmetric session app (e.g. card coaching) on plain Socket.IO with a server-authoritative state machine.",
+  "recommendedRuntime": "node",
+  "defaultModules": ["socketio-session", "socketio-react"],
+  "recommendedModules": ["sqlite"],
+  "requiredPolicies": ["security-baseline", "realtime-authority-baseline", "tdd-baseline"],
+  "rules": [
+    {
+      "level": "info",
+      "when": {},
+      "message": "Die State-Machine ist server-autoritativ; der Client schickt Absichten, nie Ergebnisse. Rollen kommen aus einem server-vertrauten Token."
+    },
+    {
+      "level": "warning",
+      "when": {
+        "modulesMissing": ["socketio-session"]
+      },
+      "message": "Realtime-session Projekte brauchen das socketio-session Modul als autoritativen Server."
+    }
+  ]
+}

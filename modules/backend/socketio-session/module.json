@@ -1,0 +1,29 @@
+{
+  "name": "socketio-session",
+  "category": "backend",
+  "description": "Realtime-Session-Server: Socket.IO-Räume über eine server-autoritative State-Machine mit rollenbasierter Command-Autorisierung und fairem Crypto-Shuffle. Stack-Anker (besitzt package.json/tsconfig).",
+  "compatibleRuntimes": ["node"],
+  "conflictsWith": ["fastapi", "boardgame-io-server"],
+  "directories": ["src/shared", "src/server", "tests"],
+  "requiredFiles": [
+    "package.json",
+    "tsconfig.json",
+    "src/shared/types.ts",
+    "src/server/session.ts",
+    "src/server/auth.ts",
+    "src/server/index.ts",
+    "tests/session.test.ts"
+  ],
+  "commands": [
+    "serve: {{PACKAGE_MANAGER}} run serve",
+    "test: {{PACKAGE_MANAGER}} run test",
+    "typecheck: {{PACKAGE_MANAGER}} run typecheck"
+  ],
+  "env": [
+    "PORT=8000",
+    "ALLOWED_ORIGIN=http://localhost:5173"
+  ],
+  "detect": {
+    "packageIndicators": ["socket.io"]
+  }
+}

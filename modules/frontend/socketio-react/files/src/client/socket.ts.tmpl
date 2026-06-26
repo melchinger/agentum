@@ -1,0 +1,14 @@
+import { io, type Socket } from 'socket.io-client';
+import type { ClientToServerEvents, ServerToClientEvents } from '../shared/types';
+
+const serverURL = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:8000';
+
+/**
+ * Connect to the session. The token is issued by your auth/session service and
+ * encodes the seat (coach/coachee) — the client never claims its own role.
+ */
+export function connectSession(
+  token: string,
+): Socket<ServerToClientEvents, ClientToServerEvents> {
+  return io(serverURL, { auth: { token } });
+}

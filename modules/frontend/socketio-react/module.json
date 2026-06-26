@@ -1,0 +1,22 @@
+{
+  "name": "socketio-react",
+  "category": "frontend",
+  "description": "React-Client für die Realtime-Session: socket.io-client-Verbindung, Live-State-Rendering, rollengesteuerte Aktionen.",
+  "compatibleRuntimes": ["node"],
+  "requiresModules": ["socketio-session"],
+  "directories": ["src/client"],
+  "requiredFiles": [
+    "index.html",
+    "vite.config.ts",
+    "src/client/main.tsx",
+    "src/client/socket.ts",
+    "src/client/App.tsx"
+  ],
+  "commands": [
+    "dev: {{PACKAGE_MANAGER}} run dev",
+    "build: {{PACKAGE_MANAGER}} run build"
+  ],
+  "env": [
+    "VITE_SERVER_URL=http://localhost:8000"
+  ]
+}

@@ -1,0 +1,33 @@
+import { describe, it, expect } from 'vitest';
+import { configure, createSession, reveal, viewFor } from '../src/server/session';
+
+const decks = { tarot: ['a', 'b', 'c', 'd'], animals: ['wolf', 'bear'] };
+
+describe('{{PROJECT_NAME}} session state machine', () => {
+  it('should draw the requested number of facedown slots', () => {
+    const state = configure(createSession(decks), [
+      { deckId: 'tarot', count: 2 },
+      { deckId: 'animals', count: 1 },
+    ]);
+    expect(state.phase).toBe('drawing');
+    expect(state.slots).toHaveLength(3);
+    expect(state.slots.every((slot) => !slot.revealed)).toBe(true);
+  });
+
+  it('should hide cardId in the client view until a slot is revealed', () => {
+    let state = configure(createSession(decks), [{ deckId: 'tarot', count: 1 }]);
+    const slotId = state.slots[0].id;
+    expect(viewFor(state).slots[0].cardId).toBeNull();
+
+    state = reveal(state, slotId);
+    expect(viewFor(state).slots[0].cardId).toBe(state.slots[0].cardId);
+    expect(state.phase).toBe('active');
+  });
+
+  it('should reject revealing an unknown or already-revealed slot', () => {
+    let state = configure(createSession(decks), [{ deckId: 'tarot', count: 1 }]);
+    expect(() => reveal(state, 'does-not-exist')).toThrow();
+    state = reveal(state, state.slots[0].id);
+    expect(() => reveal(state, state.slots[0].id)).toThrow();
+  });
+});

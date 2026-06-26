@@ -1,0 +1,6 @@
+{
+  "name": "realtime-authority-baseline",
+  "description": "Server-autoritative Echtzeit-Sessions: vertraute Rollen aus Tokens, validierte Events, serverseitiger Zufall, Reconnect-Resync.",
+  "type": "policy",
+  "version": "1.0.0"
+}
