@@ -312,9 +312,12 @@ function buildCompositionAgentsContent(repoRoot, composition, variables) {
   const overlay = [
     composition.profile?.overlay,
     ...runtimes.map((r) => r.overlay),
-    ...composition.modules.map((entry) => entry.overlay),
-    ...composition.policies.map((entry) => entry.overlay)
+    ...composition.modules.map((entry) => entry.overlay)
   ].filter(Boolean).join("\n\n");
+
+  const policiesBlock = composition.policies.length > 0
+    ? composition.policies.map((entry) => `- [x] ${entry.manifest.name}`).join("\n")
+    : "- None defined.";
 
   // For multi-runtime, generate commands for each runtime
   const runtimeCommandsBlocks = runtimes.length > 1
@@ -328,6 +331,7 @@ function buildCompositionAgentsContent(repoRoot, composition, variables) {
     VARIANT: variables.RUNTIME_NAME,
     RUNTIME: runtimes[0].manifest.language,
     COMMANDS_BLOCK: runtimeCommandsBlocks,
+    POLICIES_BLOCK: policiesBlock,
     STACK_COMMANDS_BLOCK: formatCommands(
       [
         ...composition.modules.flatMap((entry) => entry.manifest.commands || []),
@@ -419,6 +423,14 @@ function collectCompositionOperations(repoRoot, options) {
       ...collectDirectoryOperations(entry.manifest.directories, variables, options.targetDir),
       ...collectTemplateOperations(path.join(entry.dir, "files"), variables, options.targetDir)
     ]),
+    ...collectDirectoryOperations(["docs/policies"], variables, options.targetDir),
+    ...composition.policies
+      .filter((entry) => entry.overlay)
+      .map((entry) => ({
+        type: "write",
+        target: path.join(options.targetDir, "docs", "policies", `${entry.manifest.name}.md`),
+        content: entry.overlay
+      })),
     {
       type: "write",
       target: path.join(options.targetDir, "AGENTS.md"),
@@ -520,6 +532,14 @@ function compositionDoctor(repoRoot, targetDir) {
     for (const file of moduleEntity.manifest.requiredFiles || []) {
       const rendered = renderString(file, variables);
       results.push({ file: rendered, ok: fs.existsSync(path.join(targetDir, rendered)) });
+    }
+  }
+  for (const policy of composition.policies) {
+    if (policy.overlay) {
+      results.push({
+        file: `docs/policies/${policy.manifest.name}.md`,
+        ok: fs.existsSync(path.join(targetDir, "docs", "policies", `${policy.manifest.name}.md`))
+      });
     }
   }
   if (composition.policies.some((entry) => entry.manifest.name === "ci")) {

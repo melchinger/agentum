@@ -1,0 +1,22 @@
+{
+  "name": "boardgame-io-react",
+  "category": "frontend",
+  "description": "boardgame.io React-Client: Board-Komponente, über SocketIO/Local-Multiplayer an das Spiel gebunden.",
+  "compatibleRuntimes": ["node"],
+  "requiresModules": ["boardgame-io-core"],
+  "directories": ["src/client"],
+  "requiredFiles": [
+    "index.html",
+    "vite.config.ts",
+    "src/client/main.tsx",
+    "src/client/App.tsx",
+    "src/client/Board.tsx"
+  ],
+  "commands": [
+    "dev: {{PACKAGE_MANAGER}} run dev",
+    "build: {{PACKAGE_MANAGER}} run build"
+  ],
+  "env": [
+    "VITE_SERVER_URL=http://localhost:8000"
+  ]
+}

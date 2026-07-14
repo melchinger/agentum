@@ -1,0 +1,40 @@
+import type { Game } from 'boardgame.io';
+import { PlayerView } from 'boardgame.io/core';
+import { claimCell, drawSecretCard } from './moves';
+
+/**
+ * {{PROJECT_NAME}} game state.
+ *
+ * `secret` is stripped from every client payload by PlayerView.STRIP_SECRETS,
+ * so opponents and spectators never receive the deck contents.
+ */
+export interface GameState {
+  cells: (string | null)[];
+  scores: Record<string, number>;
+  secret?: { deck: number[] };
+}
+
+export const game: Game<GameState> = {
+  name: '{{PROJECT_SLUG}}',
+
+  setup: () => ({
+    cells: Array(9).fill(null),
+    scores: {},
+    secret: { deck: [1, 2, 3, 4, 5] },
+  }),
+
+  moves: {
+    claimCell,
+    // Reads/produces secret state, so it must run on the server only.
+    drawSecretCard: { client: false, move: drawSecretCard },
+  },
+
+  // One move per turn, then control passes to the next player.
+  turn: { minMoves: 1, maxMoves: 1 },
+
+  endIf: ({ G }) =>
+    G.cells.every((cell) => cell !== null) ? { draw: true } : undefined,
+
+  // Never leak secret state to clients — UI hiding alone is not enough.
+  playerView: PlayerView.STRIP_SECRETS,
+};

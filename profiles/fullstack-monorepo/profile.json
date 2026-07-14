@@ -3,8 +3,8 @@
   "description": "Monorepo with multiple runtimes (frontend + backend). Combines Node.js + Python with shared database.",
   "runtimes": ["node", "python"],
   "defaultModules": ["nextjs", "fastapi-monorepo", "postgres", "liquibase"],
-  "recommendedModules": ["mcp-python", "single-container", "sveltekit"],
-  "requiredPolicies": ["security-baseline", "ci"],
+  "recommendedModules": ["mcp-python", "single-container-fullstack", "sveltekit"],
+  "requiredPolicies": ["security-baseline", "ci", "privacy-baseline", "performance-baseline"],
   "rules": [
     {
       "level": "warning",

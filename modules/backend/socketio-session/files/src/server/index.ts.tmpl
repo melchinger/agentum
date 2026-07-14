@@ -1,0 +1,94 @@
+import { createServer } from 'node:http';
+import { Server } from 'socket.io';
+import type {
+  ClientToServerEvents,
+  ServerToClientEvents,
+  SessionState,
+  SocketData,
+} from '../shared/types';
+import { resolveToken } from './auth';
+import { close, configure, createSession, reveal, viewFor } from './session';
+
+const port = Number(process.env.PORT ?? 8000);
+const allowedOrigin = process.env.ALLOWED_ORIGIN ?? 'http://localhost:5173';
+
+// In-memory session store. Swap for Redis/DB (behind the same state machine) to
+// survive restarts or scale horizontally — see realtime-authority-baseline.
+const sessions = new Map<string, SessionState>();
+
+const httpServer = createServer();
+const io = new Server<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  SocketData
+>(httpServer, { cors: { origin: allowedOrigin } });
+
+// Server-trusted identity: resolve the token to { sessionId, role } before any
+// event is handled. A client never claims its own role.
+io.use((socket, next) => {
+  const claim = resolveToken(socket.handshake.auth?.token);
+  if (!claim) {
+    next(new Error('unauthorized'));
+    return;
+  }
+  socket.data = claim;
+  next();
+});
+
+function broadcast(sessionId: string): void {
+  const state = sessions.get(sessionId);
+  if (state) {
+    io.to(sessionId).emit('state', viewFor(state));
+  }
+}
+
+io.on('connection', (socket) => {
+  const { sessionId, role } = socket.data;
+  socket.join(sessionId);
+
+  if (!sessions.has(sessionId)) {
+    // Seed a demo session. In a real app the deck list comes from your content DB.
+    sessions.set(sessionId, createSession({ tarot: ['the-fool', 'the-magician', 'the-star'] }));
+  }
+  socket.emit('state', viewFor(sessions.get(sessionId)!));
+
+  socket.on('session:configure', (draws) => {
+    if (role !== 'coach') {
+      socket.emit('session:error', 'only the coach may configure');
+      return;
+    }
+    try {
+      sessions.set(sessionId, configure(sessions.get(sessionId)!, draws));
+      broadcast(sessionId);
+    } catch (err) {
+      socket.emit('session:error', (err as Error).message);
+    }
+  });
+
+  socket.on('slot:reveal', ({ slotId }) => {
+    if (role !== 'coachee') {
+      socket.emit('session:error', 'only the coachee may reveal');
+      return;
+    }
+    try {
+      sessions.set(sessionId, reveal(sessions.get(sessionId)!, slotId));
+      broadcast(sessionId);
+    } catch (err) {
+      socket.emit('session:error', (err as Error).message);
+    }
+  });
+
+  socket.on('session:close', () => {
+    if (role !== 'coach') {
+      socket.emit('session:error', 'only the coach may close');
+      return;
+    }
+    sessions.set(sessionId, close(sessions.get(sessionId)!));
+    broadcast(sessionId);
+  });
+});
+
+httpServer.listen(port, () => {
+  console.log(`{{PROJECT_NAME}} session server listening on :${port}`);
+});

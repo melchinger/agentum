@@ -1,0 +1,27 @@
+import type { MoveFn } from 'boardgame.io';
+import { INVALID_MOVE } from 'boardgame.io/core';
+import type { GameState } from './game';
+
+/** Claim an empty cell for the current player. */
+export const claimCell: MoveFn<GameState> = ({ G, playerID }, id: number) => {
+  if (id < 0 || id >= G.cells.length || G.cells[id] !== null) {
+    return INVALID_MOVE;
+  }
+  G.cells[id] = playerID;
+};
+
+/**
+ * Draw a card from the hidden deck and score it.
+ *
+ * Uses the Random plugin (`random.Shuffle`) so the outcome is reproducible
+ * from the match seed — never Math.random(). Wired as `client: false` in the
+ * Game object because it touches `G.secret`.
+ */
+export const drawSecretCard: MoveFn<GameState> = ({ G, random, playerID }) => {
+  if (!G.secret || G.secret.deck.length === 0) {
+    return INVALID_MOVE;
+  }
+  const [card] = random.Shuffle(G.secret.deck);
+  G.secret.deck = G.secret.deck.filter((value) => value !== card);
+  G.scores[playerID] = (G.scores[playerID] ?? 0) + card;
+};

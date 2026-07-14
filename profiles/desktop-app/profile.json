@@ -3,7 +3,7 @@
   "description": "Cross-platform desktop application with local-first defaults.",
   "recommendedRuntime": "rust",
   "defaultModules": ["tauri", "react", "sqlite"],
-  "requiredPolicies": ["security-baseline"],
+  "requiredPolicies": ["security-baseline", "performance-baseline"],
   "rules": [
     {
       "level": "info",

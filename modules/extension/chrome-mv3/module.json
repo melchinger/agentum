@@ -1,0 +1,32 @@
+{
+  "name": "chrome-mv3",
+  "category": "extension",
+  "description": "Chrome Manifest V3 browser extension scaffold with Vite + @crxjs/vite-plugin.",
+  "compatibleRuntimes": ["node"],
+  "directories": [
+    "src/background",
+    "src/popup",
+    "src/content",
+    "src/shared",
+    "public/icons",
+    "tests"
+  ],
+  "requiredFiles": [
+    "manifest.json",
+    "vite.config.ts",
+    "tsconfig.json",
+    "src/background/background.ts",
+    "src/popup/popup.html",
+    "src/popup/popup.ts"
+  ],
+  "commands": [
+    "dev: {{PACKAGE_MANAGER}} run dev",
+    "build: {{PACKAGE_MANAGER}} run build",
+    "test: {{PACKAGE_MANAGER}} run test",
+    "lint: {{PACKAGE_MANAGER}} run lint"
+  ],
+  "detect": {
+    "files": ["manifest.json"],
+    "packageIndicators": ["@crxjs/vite-plugin"]
+  }
+}

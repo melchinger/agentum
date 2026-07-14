@@ -1,0 +1,20 @@
+import { Server, Origins } from 'boardgame.io/server';
+import { game } from '../game/game';
+import { createStorage } from './storage';
+
+const port = Number(process.env.PORT ?? 8000);
+const allowedOrigin = process.env.ALLOWED_ORIGIN ?? 'http://localhost:5173';
+
+const server = Server({
+  games: [game],
+  // Persistence is chosen from the environment — see ./storage.ts. The default
+  // in-memory store loses every match on restart, so set STORAGE_DIR (FlatFile)
+  // or DATABASE_URL (Postgres) in production.
+  db: await createStorage(),
+  // Whitelist the exact origins that may connect. Never use a wildcard in production.
+  origins: [Origins.LOCALHOST, allowedOrigin],
+});
+
+server.run(port, () => {
+  console.log(`{{PROJECT_NAME}} game server listening on :${port}`);
+});

@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "{{PROJECT_NAME}}",
+  "version": "0.1.0",
+  "description": "{{PROJECT_NAME}} — Chrome Manifest V3 browser extension.",
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "{{PROJECT_NAME}}"
+  },
+  "background": {
+    "service_worker": "src/background/background.ts",
+    "type": "module"
+  },
+  "permissions": ["storage", "activeTab"],
+  "optional_host_permissions": ["<all_urls>"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  },
+  "icons": {
+    "16": "public/icons/icon16.png",
+    "48": "public/icons/icon48.png",
+    "128": "public/icons/icon128.png"
+  }
+}

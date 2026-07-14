@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  fullstack:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/{{PROJECT_SLUG}}
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - db
+    volumes:
+      - ./apps/api/src:/app/src
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB={{PROJECT_SLUG}}
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

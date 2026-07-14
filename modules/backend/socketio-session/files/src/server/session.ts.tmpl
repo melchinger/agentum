@@ -1,0 +1,70 @@
+import { randomInt, randomUUID } from 'node:crypto';
+import type { DrawRequest, SessionState, SessionView, Slot } from '../shared/types';
+
+/** Cryptographically fair Fisher–Yates shuffle. Never Math.random for a fair draw. */
+export function shuffle<T>(input: readonly T[]): T[] {
+  const a = [...input];
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+export function createSession(decks: Record<string, string[]>): SessionState {
+  return { phase: 'setup', decks: structuredClone(decks), slots: [] };
+}
+
+/** Coach configures which decks and how many cards. The draw happens here, server-side. */
+export function configure(state: SessionState, draws: DrawRequest[]): SessionState {
+  if (state.phase !== 'setup') {
+    throw new Error('session already configured');
+  }
+  const slots: Slot[] = [];
+  for (const { deckId, count } of draws) {
+    const deck = state.decks[deckId];
+    if (!deck) {
+      throw new Error(`unknown deck: ${deckId}`);
+    }
+    if (count < 1 || count > deck.length) {
+      throw new Error(`invalid count for ${deckId}`);
+    }
+    for (const cardId of shuffle(deck).slice(0, count)) {
+      slots.push({ id: randomUUID(), deckId, cardId, revealed: false });
+    }
+  }
+  return { ...state, phase: 'drawing', slots };
+}
+
+/** Coachee reveals one slot. Unknown or already-revealed slots are rejected. */
+export function reveal(state: SessionState, slotId: string): SessionState {
+  const slot = state.slots.find((entry) => entry.id === slotId);
+  if (!slot) {
+    throw new Error('unknown slot');
+  }
+  if (slot.revealed) {
+    throw new Error('already revealed');
+  }
+  const slots = state.slots.map((entry) =>
+    entry.id === slotId ? { ...entry, revealed: true } : entry,
+  );
+  const phase: SessionState['phase'] = state.phase === 'drawing' ? 'active' : state.phase;
+  return { ...state, phase, slots };
+}
+
+export function close(state: SessionState): SessionState {
+  return { ...state, phase: 'closed' };
+}
+
+/** The single secrecy rule: hide cardId until revealed. decks never leave the server. */
+export function viewFor(state: SessionState): SessionView {
+  return {
+    phase: state.phase,
+    slots: state.slots.map((slot) => ({
+      id: slot.id,
+      deckId: slot.deckId,
+      revealed: slot.revealed,
+      cardId: slot.revealed ? slot.cardId : null,
+    })),
+  };
+}

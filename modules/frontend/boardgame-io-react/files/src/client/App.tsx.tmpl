@@ -1,0 +1,15 @@
+import { Client } from 'boardgame.io/react';
+import { SocketIO } from 'boardgame.io/multiplayer';
+import { game } from '../game/game';
+import { Board } from './Board';
+
+const serverURL = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:8000';
+
+// Remote master: the server computes the authoritative state; this client is
+// optimistic. Swap SocketIO for Local() to play offline / pass-and-play.
+export const App = Client({
+  game,
+  board: Board,
+  multiplayer: SocketIO({ server: serverURL }),
+  debug: import.meta.env.DEV,
+});

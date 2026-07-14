@@ -1,0 +1,32 @@
+import type { BoardProps } from 'boardgame.io/react';
+import type { GameState } from '../game/game';
+
+export function Board({ G, ctx, moves, isActive }: BoardProps<GameState>) {
+  return (
+    <main>
+      <h1>{{PROJECT_NAME}}</h1>
+      <p>
+        Turn: player {ctx.currentPlayer}
+        {isActive ? ' — your move' : ''}
+      </p>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 3rem)',
+          gap: '0.25rem',
+        }}
+      >
+        {G.cells.map((cell, id) => (
+          <button
+            key={id}
+            disabled={!isActive || cell !== null}
+            onClick={() => moves.claimCell(id)}
+          >
+            {cell ?? ''}
+          </button>
+        ))}
+      </div>
+      {ctx.gameover && <p>Game over: {JSON.stringify(ctx.gameover)}</p>}
+    </main>
+  );
+}

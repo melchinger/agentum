@@ -1,0 +1,24 @@
+import type { Ctx } from 'boardgame.io';
+import type { GameState } from '../game/game';
+
+/**
+ * Enumerate every legal move for the current state.
+ *
+ * boardgame.io feeds this to RandomBot / MCTSBot and to the Debug panel's
+ * "play" button. Attach it to the Game object in `src/game/game.ts`:
+ *
+ *   import { enumerate } from '../ai/enumerate';
+ *   export const game: Game<GameState> = { ...,  ai: { enumerate } };
+ *
+ * Must return moves that are legal for the (possibly playerView-filtered)
+ * state the bot is allowed to see.
+ */
+export function enumerate(G: GameState, _ctx: Ctx, _playerID: string) {
+  const moves: { move: string; args: unknown[] }[] = [];
+  G.cells.forEach((cell, id) => {
+    if (cell === null) {
+      moves.push({ move: 'claimCell', args: [id] });
+    }
+  });
+  return moves;
+}

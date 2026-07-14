@@ -1,0 +1,18 @@
+/**
+ * Typed message schemas shared across service worker, popup, content scripts,
+ * and offscreen documents. Add new variants as a discriminated union so the
+ * compiler keeps every handler exhaustive.
+ */
+
+export type Message =
+  | { type: "POPUP_READY" }
+  | { type: "PING"; payload: string };
+
+export function isMessage(value: unknown): value is Message {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    typeof (value as { type: unknown }).type === "string"
+  );
+}

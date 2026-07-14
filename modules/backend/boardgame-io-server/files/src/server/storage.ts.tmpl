@@ -1,0 +1,28 @@
+import { FlatFile } from 'boardgame.io/server';
+
+/**
+ * Pick a storage backend from the environment.
+ *
+ *  - DATABASE_URL set → Postgres via the optional `bgio-postgres` package
+ *    (run `npm i bgio-postgres`). The same adapter also speaks MySQL/SQLite.
+ *  - STORAGE_DIR set  → FlatFile on disk: built in, zero extra deps, and it
+ *    survives restarts. This is the recommended default for small deployments.
+ *  - neither          → in-memory, which loses every match on restart. Fine for
+ *    tests and throwaway dev, never for production.
+ */
+export async function createStorage() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl) {
+    // Optional peer dependency — only needed when DATABASE_URL is set.
+    // @ts-expect-error install `bgio-postgres` to enable the Postgres backend.
+    const { PostgresStore } = await import('bgio-postgres');
+    return new PostgresStore(databaseUrl);
+  }
+
+  const storageDir = process.env.STORAGE_DIR;
+  if (storageDir) {
+    return new FlatFile({ dir: storageDir });
+  }
+
+  return undefined; // Server falls back to its in-memory default.
+}

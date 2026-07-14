@@ -1,0 +1,15 @@
+{
+  "name": "boardgame-io-bot",
+  "category": "ai",
+  "description": "boardgame.io KI: ai.enumerate Move-Generator plus ein serverseitiger MCTS/RandomBot-Runner.",
+  "compatibleRuntimes": ["node"],
+  "requiresModules": ["boardgame-io-core"],
+  "directories": ["src/ai"],
+  "requiredFiles": [
+    "src/ai/enumerate.ts",
+    "src/ai/play-bot.ts"
+  ],
+  "detect": {
+    "packageIndicators": ["boardgame.io"]
+  }
+}

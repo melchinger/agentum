@@ -1,0 +1,21 @@
+{
+  "name": "boardgame-io-server",
+  "category": "backend",
+  "description": "boardgame.io Multiplayer-Server (Koa + SocketIO) mit origins-Whitelist und austauschbarem Storage-Adapter.",
+  "compatibleRuntimes": ["node"],
+  "requiresModules": ["boardgame-io-core"],
+  "conflictsWith": ["fastapi"],
+  "directories": ["src/server"],
+  "requiredFiles": ["src/server/index.ts", "src/server/storage.ts"],
+  "commands": [
+    "serve: {{PACKAGE_MANAGER}} run serve"
+  ],
+  "env": [
+    "PORT=8000",
+    "ALLOWED_ORIGIN=http://localhost:5173",
+    "STORAGE_DIR=./storage"
+  ],
+  "detect": {
+    "packageIndicators": ["boardgame.io"]
+  }
+}

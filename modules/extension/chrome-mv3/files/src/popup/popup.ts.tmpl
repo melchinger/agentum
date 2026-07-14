@@ -1,0 +1,12 @@
+/**
+ * Popup entry point for {{PROJECT_NAME}}.
+ * Runs in a document context; can import from src/shared and talk to the
+ * service worker via chrome.runtime.sendMessage.
+ */
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Example handshake with the background service worker.
+  void chrome.runtime.sendMessage({ type: "POPUP_READY" }).catch(() => {
+    /* background may be waking up — safe to ignore first-call failures */
+  });
+});

@@ -55,5 +55,10 @@ This file is the canonical instruction source for `{{PROJECT_NAME}}`.
 - Do not bypass validation to “make it work”.
 - Do not add hidden global state, silent catch-all error handling, or unreviewed code generation outputs.
 
+## Active Policies
+The following governance policies apply to this repository. Full text is available in `docs/policies/`.
+
+{{POLICIES_BLOCK}}
+
 ## Stack Overlay
 {{STACK_OVERLAY}}

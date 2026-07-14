@@ -216,7 +216,7 @@ runTest("generates a composed python repository from profile runtime modules and
     const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
     assert.equal(metadata.profile, "saas-web-app");
     assert.equal(metadata.runtime, "python");
-    assert.deepEqual(metadata.policies, ["security-baseline", "ci", "mirror-instructions"]);
+    assert.deepEqual(metadata.policies, ["security-baseline", "ci", "privacy-baseline", "performance-baseline", "mirror-instructions"]);
 
     const envExample = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
     assert.match(envExample, /DATABASE_URL=postgresql:\/\/app:app@localhost:5432\/saas-python/);
@@ -225,6 +225,206 @@ runTest("generates a composed python repository from profile runtime modules and
     assert.equal(doctorResult.ok, true);
     assert.equal(doctorResult.profile, "saas-web-app");
     assert.equal(doctorResult.runtime, "python");
+  });
+});
+
+runTest("generates a composed chrome-mv3 browser extension repository", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "browser-ext");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Browser Ext",
+      profile: "browser-extension",
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // Extension-specific files from the chrome-mv3 module must land at repo root.
+    assert.equal(fs.existsSync(path.join(targetDir, "manifest.json")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "vite.config.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "tsconfig.json")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "background", "background.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "popup", "popup.html")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "popup", "popup.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "shared", "messages.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "public", "icons", "README.md")), true);
+
+    // The MV3 manifest must name the project and declare an MV3 service worker.
+    const manifest = JSON.parse(fs.readFileSync(path.join(targetDir, "manifest.json"), "utf8"));
+    assert.equal(manifest.manifest_version, 3);
+    assert.equal(manifest.name, "Browser Ext");
+    assert.equal(manifest.background.service_worker, "src/background/background.ts");
+
+    // The module must override the runtime's stub package.json so vite/crxjs are present.
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.ok(pkg.devDependencies["@crxjs/vite-plugin"]);
+    assert.ok(pkg.devDependencies.vite);
+    assert.equal(pkg.scripts.dev, "vite");
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.equal(metadata.profile, "browser-extension");
+    assert.equal(metadata.runtime, "node");
+    assert.deepEqual(metadata.modules, ["chrome-mv3"]);
+    assert.ok(metadata.policies.includes("security-baseline"));
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: Chrome MV3 Extension/);
+    assert.match(agents, /Profile: Browser Extension/);
+  });
+});
+
+runTest("generates a composed boardgame.io game repository", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "board-game");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "My Card Game",
+      profile: "board-game",
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // Engine files from the boardgame-io-core module (the stack anchor).
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "game", "game.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "game", "moves.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "tests", "game.test.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "tsconfig.json")), true);
+
+    // Server + React client come from the profile's default modules.
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "server", "index.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "server", "storage.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "client", "App.tsx")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "client", "Board.tsx")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "index.html")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "vite.config.ts")), true);
+
+    // The anchor package.json must carry the full stack: engine + React toolchain.
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.ok(pkg.dependencies["boardgame.io"]);
+    assert.ok(pkg.dependencies.react);
+    assert.equal(pkg.scripts.test, "vitest run");
+    assert.equal(pkg.scripts.serve, "tsx watch src/server/index.ts");
+
+    // The rendered game must name the project slug and keep secret state filtered.
+    const gameSource = fs.readFileSync(path.join(targetDir, "src", "game", "game.ts"), "utf8");
+    assert.match(gameSource, /name: 'my-card-game'/);
+    assert.match(gameSource, /PlayerView\.STRIP_SECRETS/);
+
+    // The server must whitelist origins and wire env-selected persistence.
+    const serverSource = fs.readFileSync(path.join(targetDir, "src", "server", "index.ts"), "utf8");
+    assert.match(serverSource, /Origins\.LOCALHOST/);
+    assert.match(serverSource, /db: await createStorage\(\)/);
+
+    // The storage adapter must offer a persistent FlatFile path, not in-memory only.
+    const storageSource = fs.readFileSync(path.join(targetDir, "src", "server", "storage.ts"), "utf8");
+    assert.match(storageSource, /FlatFile/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.equal(metadata.profile, "board-game");
+    assert.equal(metadata.runtime, "node");
+    assert.deepEqual(metadata.modules, ["boardgame-io-server", "boardgame-io-react", "boardgame-io-core"]);
+    assert.ok(metadata.policies.includes("game-fairness-baseline"));
+
+    // The fairness policy must materialise as a governance doc.
+    assert.equal(
+      fs.existsSync(path.join(targetDir, "docs", "policies", "game-fairness-baseline.md")),
+      true
+    );
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: boardgame.io Core/);
+    assert.match(agents, /Module: boardgame.io Server/);
+    assert.match(agents, /Module: boardgame.io React Client/);
+    assert.match(agents, /Profile: Board Game/);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+    assert.equal(doctorResult.profile, "board-game");
+  });
+});
+
+runTest("composes the optional boardgame.io bot module with ai.enumerate", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "board-game-bot");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Bot Arena",
+      profile: "board-game",
+      modules: ["boardgame-io-bot"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "ai", "enumerate.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "ai", "play-bot.ts")), true);
+
+    const enumerateSource = fs.readFileSync(path.join(targetDir, "src", "ai", "enumerate.ts"), "utf8");
+    assert.match(enumerateSource, /export function enumerate/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.ok(metadata.modules.includes("boardgame-io-bot"));
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: boardgame.io Bots/);
+  });
+});
+
+runTest("generates a composed realtime-session repository", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "realtime-session");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Card Coaching",
+      profile: "realtime-session",
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // Server (anchor) + shared state machine + React client.
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "shared", "types.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "server", "session.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "server", "index.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "client", "App.tsx")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "tests", "session.test.ts")), true);
+
+    // The anchor package.json must carry Socket.IO (server + client) and the React toolchain.
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.ok(pkg.dependencies["socket.io"]);
+    assert.ok(pkg.dependencies["socket.io-client"]);
+    assert.ok(pkg.dependencies.react);
+
+    // The draw must be server-side and crypto-fair (randomInt from node:crypto).
+    const sessionSource = fs.readFileSync(path.join(targetDir, "src", "server", "session.ts"), "utf8");
+    assert.match(sessionSource, /from 'node:crypto'/);
+    assert.match(sessionSource, /randomInt\(/);
+
+    // Identity must be server-trusted via a token middleware.
+    const serverSource = fs.readFileSync(path.join(targetDir, "src", "server", "index.ts"), "utf8");
+    assert.match(serverSource, /io\.use\(/);
+    assert.match(serverSource, /resolveToken/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.equal(metadata.profile, "realtime-session");
+    assert.deepEqual(metadata.modules, ["socketio-session", "socketio-react"]);
+    assert.ok(metadata.policies.includes("realtime-authority-baseline"));
+
+    assert.equal(
+      fs.existsSync(path.join(targetDir, "docs", "policies", "realtime-authority-baseline.md")),
+      true
+    );
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: Socket.IO Session Server/);
+    assert.match(agents, /Module: Socket.IO React Client/);
+    assert.match(agents, /Profile: Realtime Session/);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+    assert.equal(doctorResult.profile, "realtime-session");
   });
 });
 

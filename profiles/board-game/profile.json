@@ -1,0 +1,22 @@
+{
+  "name": "board-game",
+  "description": "Server-authoritative, turn-based multiplayer game built on boardgame.io (TypeScript).",
+  "recommendedRuntime": "node",
+  "defaultModules": ["boardgame-io-core", "boardgame-io-server", "boardgame-io-react"],
+  "recommendedModules": ["boardgame-io-bot", "sqlite"],
+  "requiredPolicies": ["security-baseline", "game-fairness-baseline", "tdd-baseline"],
+  "rules": [
+    {
+      "level": "info",
+      "when": {},
+      "message": "Alle Spiellogik gehört in moves/endIf; der Client ist optimistisch und nie autoritativ."
+    },
+    {
+      "level": "warning",
+      "when": {
+        "modulesMissing": ["boardgame-io-core"]
+      },
+      "message": "Board-game Projekte brauchen das boardgame-io-core Modul als Spiel-Engine."
+    }
+  ]
+}

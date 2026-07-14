@@ -1,0 +1,21 @@
+{
+  "name": "boardgame-io-core",
+  "category": "game-engine",
+  "description": "boardgame.io Game-Objekt: deterministische Moves, Turns/Phases, geheimer State via playerView, plus Vitest-Harness.",
+  "compatibleRuntimes": ["node"],
+  "directories": ["src/game", "tests"],
+  "requiredFiles": [
+    "package.json",
+    "tsconfig.json",
+    "src/game/game.ts",
+    "src/game/moves.ts",
+    "tests/game.test.ts"
+  ],
+  "commands": [
+    "test: {{PACKAGE_MANAGER}} run test",
+    "typecheck: {{PACKAGE_MANAGER}} run typecheck"
+  ],
+  "detect": {
+    "packageIndicators": ["boardgame.io"]
+  }
+}
