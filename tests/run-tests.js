@@ -533,6 +533,158 @@ runTest("tauri module accepts non-react frontends without errors", () => {
   assert.deepEqual(composition.errors, []);
 });
 
+runTest("composes the subscription-center-rust integration for an Axum service", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "sc-rust");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SC Rust",
+      runtime: "rust",
+      modules: ["subscription-center-rust"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // OIDC relying-party source lands under src/auth, plus the registration doc.
+    for (const file of ["mod.rs", "config.rs", "oidc.rs", "session.rs", "router.rs"]) {
+      assert.equal(fs.existsSync(path.join(targetDir, "src", "auth", file)), true);
+    }
+    assert.equal(fs.existsSync(path.join(targetDir, "docs", "subscription-center.md")), true);
+
+    // The flow must be Authorization Code + PKCE (S256) validated against JWKS.
+    const oidc = fs.readFileSync(path.join(targetDir, "src", "auth", "oidc.rs"), "utf8");
+    assert.match(oidc, /code_challenge_method/);
+    assert.match(oidc, /Algorithm::ES256/);
+    assert.match(oidc, /set_audience/);
+    assert.match(oidc, /nonce mismatch/);
+
+    // Session-kill must drop every session for a uid.
+    const session = fs.readFileSync(path.join(targetDir, "src", "auth", "session.rs"), "utf8");
+    assert.match(session, /fn kill_uid/);
+
+    // The shared SC/KanIDM env contract must reach .env.example.
+    const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(env, /OPENID_ISSUER_URL=/);
+    assert.match(env, /SESSION_KILL_SECRET=/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.deepEqual(metadata.modules, ["subscription-center-rust"]);
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: SubscriptionCenter/);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+  });
+});
+
+runTest("composes the subscription-center-fastapi integration over fastapi", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "sc-fastapi");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SC Api",
+      runtime: "python",
+      modules: ["fastapi", "subscription-center-fastapi"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    const authDir = path.join(targetDir, "src", "sc_api", "interfaces", "http", "auth");
+    for (const file of ["__init__.py", "config.py", "oidc.py", "session.py", "session_kill.py", "router.py"]) {
+      assert.equal(fs.existsSync(path.join(authDir, file)), true);
+    }
+    assert.equal(fs.existsSync(path.join(targetDir, "docs", "subscription-center.md")), true);
+
+    // ID-token validation: ES256 + audience + issuer + nonce.
+    const oidc = fs.readFileSync(path.join(authDir, "oidc.py"), "utf8");
+    assert.match(oidc, /ES256/);
+    assert.match(oidc, /code_challenge_method/);
+
+    const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(env, /SESSION_KILL_SECRET=/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.deepEqual(metadata.modules, ["fastapi", "subscription-center-fastapi"]);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+  });
+});
+
+runTest("composes the subscription-center-node integration for an Express backend", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "sc-node");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SC Node",
+      runtime: "node",
+      modules: ["subscription-center-node"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    for (const file of ["index.ts", "config.ts", "oidc.ts", "session.ts", "router.ts"]) {
+      assert.equal(fs.existsSync(path.join(targetDir, "src", "auth", file)), true);
+    }
+    assert.equal(fs.existsSync(path.join(targetDir, "docs", "subscription-center.md")), true);
+
+    const router = fs.readFileSync(path.join(targetDir, "src", "auth", "router.ts"), "utf8");
+    assert.match(router, /\/internal\/session-kill/);
+    assert.match(router, /timingSafeEqual/);
+
+    const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(env, /SESSION_KILL_SECRET=/);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+  });
+});
+
+runTest("composes the subscription-center-sveltekit integration over sveltekit", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "sc-svelte");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SC Web",
+      runtime: "node",
+      modules: ["sveltekit", "subscription-center-sveltekit"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    const webSrc = path.join(targetDir, "apps", "web", "src");
+    assert.equal(fs.existsSync(path.join(webSrc, "hooks.server.ts")), true);
+    assert.equal(fs.existsSync(path.join(webSrc, "lib", "server", "oidc.ts")), true);
+    assert.equal(fs.existsSync(path.join(webSrc, "routes", "auth", "callback", "+server.ts")), true);
+    assert.equal(
+      fs.existsSync(path.join(webSrc, "routes", "internal", "session-kill", "+server.ts")),
+      true
+    );
+    assert.equal(fs.existsSync(path.join(targetDir, "docs", "subscription-center.md")), true);
+
+    const kill = fs.readFileSync(
+      path.join(webSrc, "routes", "internal", "session-kill", "+server.ts"),
+      "utf8"
+    );
+    // Bearer check must be constant-time.
+    assert.match(kill, /safeEqual/);
+
+    const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(env, /OPENID_ISSUER_URL=/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.deepEqual(metadata.modules, ["sveltekit", "subscription-center-sveltekit"]);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+  });
+});
+
 runTest("generates variant specific python package paths", () => {
   withTempDir((tempDir) => {
     const targetDir = path.join(tempDir, "python-app");

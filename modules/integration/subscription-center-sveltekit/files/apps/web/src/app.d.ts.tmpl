@@ -1,0 +1,21 @@
+// SvelteKit app-level type augmentation.
+//
+// Shipped by the `subscription-center-sveltekit` module because the base
+// `sveltekit` module does not provide an `app.d.ts`. If your app already owns
+// this file, merge the `user` field into your existing `App.Locals` instead.
+
+import type { AppUser } from "$lib/server/config";
+
+declare global {
+  namespace App {
+    interface Locals {
+      user: AppUser | null;
+    }
+    // interface Error {}
+    // interface PageData {}
+    // interface PageState {}
+    // interface Platform {}
+  }
+}
+
+export {};

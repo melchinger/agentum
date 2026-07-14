@@ -1,0 +1,22 @@
+import { redirect, type RequestHandler } from "@sveltejs/kit";
+import { dev } from "$app/environment";
+import { buildAuthRequest, OIDC_STATE_COOKIE } from "$lib/server/oidc";
+
+/**
+ * GET /auth/login
+ * Per-app login URL registered in subscriptionCenter. Starts the OIDC
+ * Authorization Code + PKCE flow and 302-redirects to KanIDM.
+ */
+export const GET: RequestHandler = async ({ cookies }) => {
+  const { redirectUrl, stateCookie } = await buildAuthRequest();
+
+  cookies.set(OIDC_STATE_COOKIE, stateCookie, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: !dev,
+    maxAge: 600
+  });
+
+  throw redirect(302, redirectUrl);
+};

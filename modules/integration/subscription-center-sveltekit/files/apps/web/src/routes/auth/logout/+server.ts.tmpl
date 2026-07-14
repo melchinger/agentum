@@ -1,0 +1,18 @@
+import { json, type RequestHandler } from "@sveltejs/kit";
+import { SESSION_COOKIE, destroySession, readSessionCookie } from "$lib/server/session";
+
+/**
+ * POST /auth/logout
+ * Clears the current session (server-side store + cookie).
+ */
+export const POST: RequestHandler = async ({ cookies }) => {
+  const cookie = cookies.get(SESSION_COOKIE);
+  if (cookie) {
+    const sid = await readSessionCookie(cookie);
+    if (sid) {
+      destroySession(sid);
+    }
+  }
+  cookies.delete(SESSION_COOKIE, { path: "/" });
+  return json({ ok: true });
+};

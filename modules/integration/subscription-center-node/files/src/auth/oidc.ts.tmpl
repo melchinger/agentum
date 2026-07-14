@@ -1,0 +1,61 @@
+/**
+ * OIDC client setup and discovery.
+ *
+ * Uses `openid-client` v5 (`Issuer.discover`). The library performs JWKS
+ * fetching and validates id_token signature (ES256), `aud`, `iss` and the
+ * `nonce` during `client.callback`, so we do not reimplement any of that.
+ */
+import { Issuer, generators, type Client } from "openid-client";
+
+import { loadOidcConfig } from "./config.js";
+
+let clientPromise: Promise<Client> | undefined;
+
+/**
+ * Discover the KanIDM issuer at
+ * `{OPENID_ISSUER_URL}/.well-known/openid-configuration` and build a
+ * confidential client (client_id + client_secret, basic auth). The result
+ * is memoised for the lifetime of the process.
+ */
+export function getClient(): Promise<Client> {
+  if (!clientPromise) {
+    clientPromise = (async () => {
+      const config = loadOidcConfig();
+      const issuer = await Issuer.discover(config.issuerUrl);
+      return new issuer.Client({
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        redirect_uris: [config.redirectUrl],
+        response_types: ["code"],
+        // Confidential client: authenticate at the token endpoint with the
+        // shared secret via HTTP Basic.
+        token_endpoint_auth_method: "client_secret_basic",
+        id_token_signed_response_alg: "ES256",
+      });
+    })();
+  }
+  return clientPromise;
+}
+
+export interface AuthRequestState {
+  readonly state: string;
+  readonly nonce: string;
+  readonly codeVerifier: string;
+}
+
+/**
+ * Generate the per-request PKCE + CSRF material. Persist the returned
+ * values in the session and pass the derived challenge to the authorize
+ * URL.
+ */
+export function createAuthRequestState(): AuthRequestState {
+  return {
+    state: generators.state(),
+    nonce: generators.nonce(),
+    codeVerifier: generators.codeVerifier(),
+  };
+}
+
+export function codeChallengeFor(codeVerifier: string): string {
+  return generators.codeChallenge(codeVerifier);
+}

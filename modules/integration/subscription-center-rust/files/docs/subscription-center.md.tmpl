@@ -1,0 +1,62 @@
+# subscriptionCenter / KanIDM-Anbindung
+
+Diese App ist ein **OAuth2-Client (Confidential)** von KanIDM und wird über
+**subscriptionCenter** verwaltet. Zugriff wird ausschließlich über
+**KanIDM-Gruppenmitgliedschaft** gewährt (der `groups`-Claim des ID-Tokens) —
+niemals über eine lokale Tabelle. Das ist genau das Modell, das
+subscriptionCenter durchsetzt: ein Abo kauft eine Gruppenmitgliedschaft, die
+Mitgliedschaft schaltet den App-Zugang frei.
+
+## 1. App im subscriptionCenter-Admin registrieren
+
+Im SC-Admin unter **`/apps`** (bzw. direkt in KanIDM):
+
+1. **OAuth2-Client anlegen** für `{{PROJECT_NAME}}`. Danach auf der App-Detailseite
+   ablesen:
+   - `OPENID_CLIENT_ID` — der Client-Name/-ID.
+   - `OPENID_CLIENT_SECRET` — das **Confidential Basic Secret** (read-only angezeigt,
+     per „Secret neu generieren" rotierbar).
+   - `OPENID_ISSUER_URL` — der client-spezifische Issuer, i. d. R.
+     `https://id.ch01.melchinger.net/oauth2/openid/<client-id>`.
+2. **Redirect-URL** eintragen: der Wert aus `OPENID_REDIRECT_URL`
+   (Default `http://localhost:8080/auth/callback`, in Prod die öffentliche URL).
+3. **Scope-Map `groups`** setzen, damit die relevanten KanIDM-Gruppen im Token landen.
+4. **Login-URL der App** (Kundendashboard „Meine Apps") auf `…/auth/login` zeigen lassen.
+5. **Session-Kill-Webhook** aktivieren:
+   - URL: `https://<host>/internal/session-kill`
+   - Bearer-Secret: der Wert aus `SESSION_KILL_SECRET` (in SC und hier identisch setzen).
+
+## 2. `.env` befüllen
+
+Die Keys stehen in `.env.example`. Pflicht, sobald `OPENID_ENABLED=true`:
+
+| Key | Bedeutung |
+| --- | --- |
+| `OPENID_ISSUER_URL` | Client-spezifischer KanIDM-Issuer |
+| `OPENID_CLIENT_ID` | OAuth2-Client-ID aus SC |
+| `OPENID_CLIENT_SECRET` | Confidential Basic Secret aus SC |
+| `OPENID_REDIRECT_URL` | muss der in SC/KanIDM hinterlegten Redirect-URL entsprechen |
+| `OPENID_SCOPES` | `openid email profile groups` |
+| `OPENID_ADMIN_GROUP` | (optional) KanIDM-Gruppe, die Admin-Routen freischaltet |
+| `SESSION_SECRET` | signiert das lokale Session-Cookie |
+| `SESSION_KILL_SECRET` | geteiltes Bearer-Secret mit subscriptionCenter |
+
+Für lokale Entwicklung ohne KanIDM: `OPENID_ENABLED=false` → Auth wird umgangen
+(jeder Request ist der „dev"-User). **Nie in Produktion.**
+
+## 3. Zugriffsmodell (Gruppen → Rollen)
+
+Nach dem Login trägt die Session die (SPN-bereinigten) KanIDM-Gruppen. Routen
+gatest du selbst:
+
+```rust
+let Some(user) = auth::current_user(&state, &headers) else {
+    return Redirect::to("/auth/login").into_response();
+};
+if !auth::has_group(&user, state.config.admin_group.as_deref().unwrap_or_default()) {
+    return StatusCode::FORBIDDEN.into_response();
+}
+```
+
+Verliert ein Nutzer sein Abo, ruft subscriptionCenter `/internal/session-kill`
+mit seiner `uid` auf — alle seine Sessions werden sofort verworfen.

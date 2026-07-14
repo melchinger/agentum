@@ -1,0 +1,41 @@
+{
+  "name": "subscription-center-sveltekit",
+  "category": "integration",
+  "description": "SubscriptionCenter-Integration: OIDC-Login via KanIDM, Autorisierung ueber KanIDM-Gruppen und Session-Kill-Endpoint fuer die SvelteKit-Server-Schicht (apps/web).",
+  "compatibleRuntimes": ["node"],
+  "requiresModules": ["sveltekit"],
+  "directories": [
+    "apps/web/src/lib/server",
+    "apps/web/src/routes/auth/login",
+    "apps/web/src/routes/auth/callback",
+    "apps/web/src/routes/auth/logout",
+    "apps/web/src/routes/internal/session-kill",
+    "docs"
+  ],
+  "requiredFiles": [
+    "apps/web/src/app.d.ts",
+    "apps/web/src/hooks.server.ts",
+    "apps/web/src/lib/server/config.ts",
+    "apps/web/src/lib/server/oidc.ts",
+    "apps/web/src/lib/server/session.ts",
+    "apps/web/src/routes/auth/login/+server.ts",
+    "apps/web/src/routes/auth/callback/+server.ts",
+    "apps/web/src/routes/auth/logout/+server.ts",
+    "apps/web/src/routes/internal/session-kill/+server.ts",
+    "docs/subscription-center.md"
+  ],
+  "env": [
+    "OPENID_ENABLED=true",
+    "OPENID_ISSUER_URL=https://id.ch01.melchinger.net/oauth2/openid/CHANGE_ME",
+    "OPENID_CLIENT_ID=CHANGE_ME",
+    "OPENID_CLIENT_SECRET=CHANGE_ME",
+    "OPENID_REDIRECT_URL=http://localhost:5173/auth/callback",
+    "OPENID_SCOPES=openid email profile groups",
+    "OPENID_ADMIN_GROUP=",
+    "SESSION_SECRET=change-me-generate-a-random-32-byte-secret",
+    "SESSION_KILL_SECRET=change-me-shared-with-subscriptioncenter"
+  ],
+  "detect": {
+    "packageIndicators": ["openid-client"]
+  }
+}

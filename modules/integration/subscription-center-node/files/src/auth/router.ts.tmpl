@@ -1,0 +1,218 @@
+/**
+ * SubscriptionCenter auth routes and authorization middleware.
+ *
+ * Exposes an Express Router with:
+ *   GET  /auth/login             -> start OIDC + PKCE flow
+ *   GET  /auth/callback          -> exchange code, establish session
+ *   POST /auth/logout            -> destroy session
+ *   POST /internal/session-kill  -> subscriptionCenter webhook, revoke a uid
+ *
+ * and the `requireLogin` / `requireGroup` middleware factories.
+ */
+import { timingSafeEqual } from "node:crypto";
+import express, { type NextFunction, type Request, type Response, type RequestHandler } from "express";
+
+import { loadOidcConfig, openidEnabled, sessionKillSecret, stripSpn } from "./config.js";
+
+/** Constant-time string compare so the shared bearer secret cannot be timing-probed. */
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
+}
+import { codeChallengeFor, createAuthRequestState, getClient } from "./oidc.js";
+import { forgetSession, killSessionsForUid, registerSession } from "./session.js";
+
+let devBypassWarned = false;
+
+function warnDevBypass(): void {
+  if (!devBypassWarned) {
+    // Intentional dev-only warning; not part of the normal request flow.
+    console.warn(
+      "[subscription-center] OPENID_ENABLED=false - auth is bypassed. Do NOT run this in production.",
+    );
+    devBypassWarned = true;
+  }
+}
+
+/**
+ * Require an authenticated session. In dev-bypass mode a synthetic identity
+ * is injected so downstream handlers still see `req.session.uid`.
+ */
+export const requireLogin: RequestHandler = (req: Request, res: Response, next: NextFunction): void => {
+  if (!openidEnabled) {
+    warnDevBypass();
+    if (!req.session.uid) {
+      req.session.uid = "dev";
+      req.session.groups = [];
+    }
+    next();
+    return;
+  }
+  if (!req.session.uid) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  next();
+};
+
+/**
+ * Require membership in a specific KanIDM group (SPN-stripped name). Runs
+ * `requireLogin` first. Bypassed together with auth in dev mode.
+ */
+export function requireGroup(name: string): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!openidEnabled) {
+      warnDevBypass();
+      next();
+      return;
+    }
+    if (!req.session.uid) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    if (!req.session.groups?.includes(name)) {
+      res.status(403).json({ error: "forbidden", requiredGroup: name });
+      return;
+    }
+    next();
+  };
+}
+
+export function createSubscriptionCenterRouter(): express.Router {
+  const router = express.Router();
+
+  router.get("/auth/login", async (req: Request, res: Response, next: NextFunction) => {
+    if (!openidEnabled) {
+      warnDevBypass();
+      res.redirect("/");
+      return;
+    }
+    try {
+      const config = loadOidcConfig();
+      const client = await getClient();
+      const { state, nonce, codeVerifier } = createAuthRequestState();
+
+      req.session.pending = { state, nonce, codeVerifier };
+
+      const authorizeUrl = client.authorizationUrl({
+        response_type: "code",
+        client_id: config.clientId,
+        redirect_uri: config.redirectUrl,
+        scope: config.scopes,
+        state,
+        nonce,
+        code_challenge: codeChallengeFor(codeVerifier),
+        code_challenge_method: "S256",
+      });
+
+      res.redirect(authorizeUrl);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/auth/callback", async (req: Request, res: Response, next: NextFunction) => {
+    if (!openidEnabled) {
+      warnDevBypass();
+      res.redirect("/");
+      return;
+    }
+    try {
+      const pending = req.session.pending;
+      if (!pending) {
+        res.status(400).json({ error: "no_pending_auth" });
+        return;
+      }
+
+      const config = loadOidcConfig();
+      const client = await getClient();
+      const params = client.callbackParams(req);
+
+      // openid-client validates the id_token signature (ES256), aud, iss and
+      // nonce, and enforces the PKCE code_verifier below.
+      const tokenSet = await client.callback(config.redirectUrl, params, {
+        state: pending.state,
+        nonce: pending.nonce,
+        code_verifier: pending.codeVerifier,
+      });
+
+      const claims = tokenSet.claims();
+      const preferredUsername =
+        typeof claims.preferred_username === "string" ? claims.preferred_username : undefined;
+      const uid = preferredUsername ? stripSpn(preferredUsername) : stripSpn(claims.sub);
+      const claimGroups = (claims as unknown as { groups?: unknown }).groups;
+      const rawGroups = Array.isArray(claimGroups)
+        ? claimGroups.filter((g): g is string => typeof g === "string")
+        : [];
+      const groups = rawGroups.map(stripSpn);
+
+      // Regenerate the session id on privilege change to prevent fixation,
+      // then establish the authenticated identity.
+      req.session.regenerate((regenErr) => {
+        if (regenErr) {
+          next(regenErr);
+          return;
+        }
+        req.session.uid = uid;
+        req.session.groups = groups;
+        req.session.pending = undefined;
+        registerSession(uid, req.sessionID);
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            next(saveErr);
+            return;
+          }
+          res.redirect("/");
+        });
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/auth/logout", (req: Request, res: Response, next: NextFunction) => {
+    const uid = req.session.uid;
+    const sessionId = req.sessionID;
+    req.session.destroy((error) => {
+      if (error) {
+        next(error);
+        return;
+      }
+      if (uid) {
+        forgetSession(uid, sessionId);
+      }
+      res.clearCookie("sc.sid");
+      res.status(204).end();
+    });
+  });
+
+  /**
+   * Internal webhook called by the subscriptionCenter service to revoke a
+   * user. Authenticated with a shared bearer secret. Mirrors the WordPress
+   * `POST /wp-json/openid-role-mapper/v1/session-kill` endpoint.
+   */
+  router.post("/internal/session-kill", express.json(), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const header = req.get("authorization") ?? "";
+      const expected = `Bearer ${sessionKillSecret}`;
+      if (!safeEqual(header, expected)) {
+        res.status(401).json({ error: "unauthorized" });
+        return;
+      }
+      const uid = (req.body as { uid?: unknown } | undefined)?.uid;
+      if (typeof uid !== "string" || uid.length === 0) {
+        res.status(400).json({ error: "missing_uid" });
+        return;
+      }
+      await killSessionsForUid(uid);
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  return router;
+}
+
+export const subscriptionCenterRouter = createSubscriptionCenterRouter();

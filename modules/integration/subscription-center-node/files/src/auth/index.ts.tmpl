@@ -1,0 +1,27 @@
+/**
+ * SubscriptionCenter (Node) auth module - public surface.
+ *
+ * Mount in your Express app:
+ *
+ *   import session from "express-session";
+ *   import { sessionOptions, subscriptionCenterRouter } from "./auth/index.js";
+ *
+ *   app.use(session(sessionOptions));
+ *   app.use(subscriptionCenterRouter);
+ *
+ * Protect routes:
+ *
+ *   app.get("/me", requireLogin, handler);
+ *   app.get("/admin", requireGroup("admins"), handler);
+ *
+ * See docs/subscription-center.md for the subscriptionCenter registration
+ * checklist and the KanIDM groups -> roles access model.
+ */
+export { openidEnabled } from "./config.js";
+export { sessionOptions, session } from "./session.js";
+export {
+  subscriptionCenterRouter,
+  createSubscriptionCenterRouter,
+  requireLogin,
+  requireGroup,
+} from "./router.js";

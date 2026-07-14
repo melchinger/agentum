@@ -3,7 +3,7 @@
   "description": "Multi-user web application with production-oriented defaults.",
   "recommendedRuntime": "python",
   "defaultModules": ["fastapi", "postgres", "alembic"],
-  "recommendedModules": ["htmx"],
+  "recommendedModules": ["htmx", "subscription-center-fastapi"],
   "requiredPolicies": ["security-baseline", "ci", "privacy-baseline", "performance-baseline"],
   "rules": [
     {

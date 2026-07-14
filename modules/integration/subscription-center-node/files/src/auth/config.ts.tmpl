@@ -1,0 +1,78 @@
+/**
+ * SubscriptionCenter auth configuration.
+ *
+ * All values are read from `process.env`. No secrets are hardcoded.
+ * The generated project is expected to load a `.env` file (e.g. via
+ * `dotenv/config`) before this module is imported.
+ */
+
+function readEnv(key: string): string | undefined {
+  const value = process.env[key];
+  if (value === undefined) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function requireEnv(key: string): string {
+  const value = readEnv(key);
+  if (value === undefined) {
+    throw new Error(`[subscription-center] Missing required environment variable: ${key}`);
+  }
+  return value;
+}
+
+/**
+ * When OIDC is disabled we run in a local-dev bypass mode: `requireLogin`
+ * and `requireGroup` let every request through. Never enable this in
+ * production.
+ */
+export const openidEnabled: boolean = readEnv("OPENID_ENABLED") !== "false";
+
+export interface OidcConfig {
+  readonly issuerUrl: string;
+  readonly clientId: string;
+  readonly clientSecret: string;
+  readonly redirectUrl: string;
+  readonly scopes: string;
+  readonly adminGroup: string | undefined;
+}
+
+/**
+ * Fully resolved OIDC config. Only call this when {@link openidEnabled} is
+ * true; in bypass mode the OIDC endpoints must not be reachable and this
+ * would throw on missing secrets.
+ */
+export function loadOidcConfig(): OidcConfig {
+  return {
+    issuerUrl: requireEnv("OPENID_ISSUER_URL"),
+    clientId: requireEnv("OPENID_CLIENT_ID"),
+    clientSecret: requireEnv("OPENID_CLIENT_SECRET"),
+    redirectUrl: requireEnv("OPENID_REDIRECT_URL"),
+    scopes: readEnv("OPENID_SCOPES") ?? "openid email profile groups",
+    adminGroup: readEnv("OPENID_ADMIN_GROUP"),
+  };
+}
+
+export const sessionSecret: string = openidEnabled
+  ? requireEnv("SESSION_SECRET")
+  : readEnv("SESSION_SECRET") ?? "insecure-dev-session-secret";
+
+/**
+ * Shared secret presented by the subscriptionCenter service on the
+ * session-kill webhook. Required whenever OIDC is enabled.
+ */
+export const sessionKillSecret: string = openidEnabled
+  ? requireEnv("SESSION_KILL_SECRET")
+  : readEnv("SESSION_KILL_SECRET") ?? "insecure-dev-session-kill-secret";
+
+/**
+ * KanIDM issues `sub` and group names with an `@<realm>` SPN suffix.
+ * Strip everything from the first `@` so uids/groups match the plain
+ * names configured in the subscriptionCenter access model.
+ */
+export function stripSpn(value: string): string {
+  const at = value.indexOf("@");
+  return at === -1 ? value : value.slice(0, at);
+}

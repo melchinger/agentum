@@ -1,0 +1,26 @@
+"""SubscriptionCenter / KanIDM OIDC integration for the FastAPI delivery layer.
+
+Public surface:
+
+- ``auth_router``   -> include with ``app.include_router(auth_router)``
+- ``require_login`` -> dependency that requires an authenticated session
+- ``require_group`` -> dependency factory for KanIDM group authorization
+- ``Principal``     -> the authenticated user (uid + groups)
+
+See ``docs/subscription-center.md`` for setup.
+"""
+
+from __future__ import annotations
+
+from .config import OidcSettings, get_settings
+from .router import auth_router, require_group, require_login
+from .session import Principal
+
+__all__ = [
+    "OidcSettings",
+    "Principal",
+    "auth_router",
+    "get_settings",
+    "require_group",
+    "require_login",
+]
