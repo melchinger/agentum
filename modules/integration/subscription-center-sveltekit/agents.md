@@ -6,21 +6,19 @@ membership, and a session-kill endpoint the subscriptionCenter service calls to
 revoke sessions. This module ships only server-side auth source — it does not
 own `package.json`, `svelte.config.js`, or `tsconfig.json`.
 
-### 1. Add npm dependencies to `apps/web/package.json`
+### 1. npm dependencies
 
-Add these to `dependencies` (pinned):
-
-```json
-"openid-client": "^5.7.0",
-"jose": "^5.9.6"
-```
+Merged into `apps/web/package.json` by the generator from `npmDependencies` in
+`module.json` — no manual step. Run an install afterwards.
 
 - `openid-client` v5 — OIDC discovery, PKCE (S256), token exchange and full
-  id_token validation (JWKS / ES256 / aud / iss / nonce).
+  id_token validation (JWKS / ES256 / aud / iss / nonce). The v5 API is
+  incompatible with v6; stay on v5.
 - `jose` — HMAC-signs the short-lived state cookie and the session cookie with
   `SESSION_SECRET`.
 
-Then reinstall (`npm install` / `pnpm install` / `yarn`).
+Add new packages to `module.json`, not to the generated `apps/web/package.json`:
+regenerating drops a hand-edit.
 
 ### 2. `hooks.server.ts` is picked up automatically
 

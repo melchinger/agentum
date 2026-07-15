@@ -1,0 +1,18 @@
+//! HTTP delivery layer.
+//!
+//! Keep this layer thin: parse and validate the request, delegate to a domain
+//! function, map the result to a response. Business rules do not belong here.
+
+mod health;
+
+use crate::state::AppState;
+use axum::Router;
+use tower_http::trace::TraceLayer;
+
+pub fn router(state: AppState) -> Router {
+    Router::new()
+        // Mount additional route groups here, e.g. `.merge(tours::routes())`.
+        .merge(health::routes())
+        .layer(TraceLayer::new_for_http())
+        .with_state(state)
+}

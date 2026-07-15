@@ -6,15 +6,12 @@ liefert nur Auth-Quellcode unter `src/auth/` und `docs/subscription-center.md`
 - **keine** `package.json`/`tsconfig.json`. Der Auth-Quellcode ist ESM,
 strict TypeScript und liest alle Geheimnisse aus `process.env`.
 
-### npm-Abhaengigkeiten hinzufuegen
+### npm-Abhaengigkeiten
 
-Dieses Modul bringt keine Manifeste mit. Ergaenze die Dependencies im
-`package.json` des generierten Projekts (Versionen als sinnvolle Untergrenze):
-
-```
-{{PACKAGE_MANAGER}} add openid-client@^5.6.5 express@^4.19.2 express-session@^1.18.0
-{{PACKAGE_MANAGER}} add -D @types/express@^4.17.21 @types/express-session@^1.18.0 @types/node@^22.0.0
-```
+Werden vom Generator aus `npmDependencies` in `module.json` in die `package.json`
+gemischt - kein manueller Schritt. Neue Pakete dort eintragen, nicht in der
+generierten `package.json`: ein erneutes Generieren wuerde die Handaenderung
+verwerfen. Danach `{{PACKAGE_MANAGER}} install`.
 
 - `openid-client` (v5) - Discovery, PKCE, Token-/id_token-Validierung
   (JWKS, ES256, aud, iss, nonce). Die v5-API (`Issuer.discover`,

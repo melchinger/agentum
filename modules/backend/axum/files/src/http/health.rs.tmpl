@@ -1,0 +1,42 @@
+use crate::state::AppState;
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::routing::get;
+use axum::{Json, Router};
+use serde::Serialize;
+
+#[derive(Serialize)]
+pub struct Health {
+    status: &'static str,
+    database: &'static str,
+}
+
+pub fn routes() -> Router<AppState> {
+    Router::new().route("/health", get(health))
+}
+
+/// Readiness probe. Reports `degraded` with 503 when the database is unreachable so
+/// an orchestrator pulls the instance out of rotation instead of letting it serve
+/// errors. Uses the query function rather than the `query!` macro on purpose: the
+/// macro would require a reachable database at compile time.
+async fn health(State(state): State<AppState>) -> (StatusCode, Json<Health>) {
+    match sqlx::query("SELECT 1").execute(&state.db).await {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(Health {
+                status: "ok",
+                database: "up",
+            }),
+        ),
+        Err(error) => {
+            tracing::warn!("health check failed: {}", error);
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(Health {
+                    status: "degraded",
+                    database: "down",
+                }),
+            )
+        }
+    }
+}

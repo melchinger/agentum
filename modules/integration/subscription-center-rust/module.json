@@ -3,6 +3,20 @@
   "category": "integration",
   "description": "KanIDM-OIDC-Anbindung (Authorization Code + PKCE) an subscriptionCenter für Axum-Services: Login, Gruppen→Rollen-Autorisierung und Session-Kill-Webhook. Additiv über die rust-Runtime.",
   "compatibleRuntimes": ["rust"],
+  "requiresModules": ["axum"],
+  "cargoDependencies": {
+    "axum": "0.8",
+    "tokio": { "version": "1", "features": ["macros", "rt-multi-thread"] },
+    "reqwest": { "version": "0.12", "default-features": false, "features": ["json", "rustls-tls"] },
+    "serde": { "version": "1", "features": ["derive"] },
+    "serde_json": "1",
+    "jsonwebtoken": "9",
+    "sha2": "0.10",
+    "base64": "0.22",
+    "url": "2",
+    "getrandom": "0.2",
+    "tracing": "0.1"
+  },
   "directories": [
     "src/auth",
     "docs"

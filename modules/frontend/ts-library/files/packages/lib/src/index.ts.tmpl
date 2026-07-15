@@ -1,0 +1,26 @@
+/**
+ * Public surface of {{PROJECT_NAME}}.
+ *
+ * Everything exported here is the contract consumers depend on. Anything not
+ * re-exported from this file is internal and free to change.
+ */
+
+export interface Options {
+  /** Base URL of the API this library talks to. */
+  readonly apiUrl: string;
+}
+
+export class ConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConfigError";
+  }
+}
+
+export function createClient(options: Options): { readonly apiUrl: string } {
+  if (!options.apiUrl) {
+    throw new ConfigError("apiUrl is required");
+  }
+
+  return { apiUrl: options.apiUrl.replace(/\/+$/, "") };
+}

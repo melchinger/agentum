@@ -1,8 +1,20 @@
 {
   "name": "subscription-center-node",
   "category": "integration",
-  "description": "Macht ein Node.js/TypeScript-Backend (Express) SC-ready: OIDC-Login via KanIDM, Autorisierung ueber KanIDM-Gruppen und ein Session-Kill-Webhook, ueber den der subscriptionCenter-Dienst Sessions widerruft. Additiv - liefert nur Auth-Quellcode und Doku, keine package.json.",
+  "description": "Macht ein Node.js/TypeScript-Backend (Express) SC-ready: OIDC-Login via KanIDM, Autorisierung ueber KanIDM-Gruppen und ein Session-Kill-Webhook, ueber den der subscriptionCenter-Dienst Sessions widerruft. Additiv - liefert Auth-Quellcode und Doku und ergaenzt die package.json der Runtime.",
   "compatibleRuntimes": ["node"],
+  "npmDependencies": {
+    "dependencies": {
+      "openid-client": "^5.6.5",
+      "express": "^4.19.2",
+      "express-session": "^1.18.0"
+    },
+    "devDependencies": {
+      "@types/express": "^4.17.21",
+      "@types/express-session": "^1.18.0",
+      "@types/node": "^22.0.0"
+    }
+  },
   "directories": ["src/auth", "docs"],
   "requiredFiles": [
     "src/auth/index.ts",

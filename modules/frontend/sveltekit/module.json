@@ -3,6 +3,7 @@
   "category": "frontend",
   "description": "SvelteKit with adapter-node for SSR-capable web apps in a monorepo layout.",
   "compatibleRuntimes": ["node"],
+  "conflictsWith": ["nextjs", "sveltekit-static"],
   "directories": [
     "apps/web/src/routes",
     "apps/web/src/lib"

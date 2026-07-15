@@ -1,0 +1,43 @@
+{
+  "name": "axum",
+  "category": "backend",
+  "description": "Axum HTTP delivery layer for Rust services, wired to PostgreSQL through SQLx.",
+  "compatibleRuntimes": ["rust"],
+  "conflictsWith": ["fastapi", "fastapi-monorepo", "boardgame-io-server", "socketio-session"],
+  "implies": ["postgres"],
+  "directories": [
+    "src/http"
+  ],
+  "requiredFiles": [
+    "src/main.rs",
+    "src/state.rs",
+    "src/http/mod.rs",
+    "src/http/health.rs"
+  ],
+  "commands": [
+    "serve: cargo run",
+    "test: cargo test"
+  ],
+  "env": [
+    "BIND_ADDR=0.0.0.0:8080",
+    "RUST_LOG=info"
+  ],
+  "cargoDependencies": {
+    "axum": "0.8",
+    "tokio": { "version": "1", "features": ["macros", "rt-multi-thread"] },
+    "tower-http": { "version": "0.6", "features": ["trace"] },
+    "serde": { "version": "1", "features": ["derive"] },
+    "serde_json": "1",
+    "sqlx": {
+      "version": "0.8",
+      "default-features": false,
+      "features": ["runtime-tokio", "tls-rustls", "postgres", "macros", "migrate"]
+    },
+    "tracing": "0.1",
+    "tracing-subscriber": { "version": "0.3", "features": ["env-filter"] },
+    "anyhow": "1"
+  },
+  "detect": {
+    "packageIndicators": ["axum"]
+  }
+}

@@ -11,25 +11,11 @@ Bereitgestellt unter `src/auth/`:
 - `session.rs` — In-Memory-Sessionstore mit uid-Index (`kill_uid` für Session-Kill).
 - `router.rs` — Axum-Router: `GET /auth/login`, `GET /auth/callback`, `POST /auth/logout`, `POST /internal/session-kill`, plus `current_user` / `has_group`.
 
-### Cargo-Dependencies ergänzen
+### Cargo-Dependencies
 
-Diese Crate ist additiv — trage die folgenden Abhängigkeiten in die `Cargo.toml`
-des generierten Projekts ein:
-
-```toml
-[dependencies]
-axum = "0.7"
-tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-jsonwebtoken = "9"
-sha2 = "0.10"
-base64 = "0.22"
-url = "2"
-getrandom = "0.2"
-tracing = "0.1"
-```
+Werden vom Generator aus `cargoDependencies` in `module.json` in die `Cargo.toml`
+gemischt — kein manueller Schritt. Neue Crates dort eintragen, nicht in der
+generierten `Cargo.toml`: ein erneutes Generieren würde die Handänderung verwerfen.
 
 ### In `main.rs` einbinden
 

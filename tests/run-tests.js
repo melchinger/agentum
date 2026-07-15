@@ -253,6 +253,127 @@ runTest("npm merge preserves the fields the target already declares", () => {
   assert.deepEqual(Object.keys(manifest.dependencies), ["express", "zod"]);
 });
 
+runTest("composes an axum service with merged cargo dependencies", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "api");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Tour API",
+      runtime: "rust",
+      modules: ["axum", "subscription-center-rust"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    const cargoToml = fs.readFileSync(path.join(targetDir, "Cargo.toml"), "utf8");
+    // Both modules contribute to the one Cargo.toml the rust runtime owns.
+    assert.ok(cargoToml.includes('axum = "0.8"'), cargoToml);
+    assert.ok(cargoToml.includes("sqlx = {"), cargoToml);
+    assert.ok(cargoToml.includes('jsonwebtoken = "9"'), cargoToml);
+    // The runtime's placeholder must not survive into the generated manifest.
+    assert.ok(!cargoToml.includes("{{"), cargoToml);
+    // axum is declared by both modules and must appear exactly once.
+    assert.equal(cargoToml.split("\n").filter((line) => line.startsWith("axum = ")).length, 1);
+  });
+});
+
+runTest("subscription-center-rust requires a backend to mount on", () => {
+  const composition = resolveComposition(repoRoot, {
+    runtime: "rust",
+    modules: ["subscription-center-rust"]
+  });
+
+  assert.ok(
+    composition.errors.some((entry) => entry.includes("requires module `axum`")),
+    JSON.stringify(composition.errors)
+  );
+});
+
+runTest("composes a rust+node monorepo across both runtimes", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "mono");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "TourForge",
+      profile: "rust-node-monorepo",
+      modules: ["ts-library"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // Both runtimes contribute their own manifest without clobbering each other.
+    assert.equal(fs.existsSync(path.join(targetDir, "Cargo.toml")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "package.json")), true);
+    // Backend, frontend app and shared library each land in their own tree.
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "main.rs")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "apps", "web", "package.json")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "packages", "lib", "vite.config.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "migrations", "README.md")), true);
+  });
+});
+
+runTest("warns when the backend authenticates but the frontend cannot", () => {
+  const composition = resolveComposition(repoRoot, {
+    profile: "rust-node-monorepo",
+    modules: ["subscription-center-rust"]
+  });
+
+  assert.deepEqual(composition.errors, []);
+  assert.ok(
+    composition.warnings.some((entry) => entry.includes("subscription-center-sveltekit")),
+    JSON.stringify(composition.warnings)
+  );
+});
+
+runTest("routes npm dependencies to the workspace that needs them", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "mono");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "TourForge",
+      profile: "rust-node-monorepo",
+      modules: ["subscription-center-sveltekit"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // The auth layer belongs to the frontend workspace, not the repository root.
+    const web = JSON.parse(fs.readFileSync(path.join(targetDir, "apps", "web", "package.json"), "utf8"));
+    assert.equal(web.dependencies["openid-client"], "^5.7.0");
+    assert.equal(web.dependencies.jose, "^5.9.6");
+    // sveltekit's own devDependencies must survive the merge.
+    assert.ok(web.devDependencies["@sveltejs/kit"], JSON.stringify(web.devDependencies));
+
+    const root = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.equal(root.dependencies, undefined, JSON.stringify(root));
+  });
+});
+
+runTest("rejects npm dependencies aimed at a manifest nobody provides", () => {
+  withTempDir((tempDir) => {
+    copyCatalog(repoRoot, tempDir);
+    const target = path.join(tempDir, "modules", "integration", "subscription-center-node", "module.json");
+    const manifest = JSON.parse(fs.readFileSync(target, "utf8"));
+    manifest.npmDependencies.target = "apps/nowhere/package.json";
+    fs.writeFileSync(target, JSON.stringify(manifest, null, 2), "utf8");
+    fs.cpSync(path.join(repoRoot, "templates"), path.join(tempDir, "templates"), { recursive: true });
+
+    assert.throws(
+      () => collectCompositionOperations(tempDir, {
+        targetDir: path.join(tempDir, "out"),
+        projectName: "SC",
+        runtime: "node",
+        modules: ["subscription-center-node"],
+        policies: []
+      }),
+      /no runtime or module provides that file/
+    );
+  });
+});
+
 runTest("lists composition catalog entries", () => {
   assert.ok(listProfiles(repoRoot).some((entry) => entry.name === "saas-web-app"));
   assert.ok(listRuntimes(repoRoot).some((entry) => entry.name === "python"));
@@ -674,7 +795,8 @@ runTest("composes the subscription-center-rust integration for an Axum service",
       targetDir,
       projectName: "SC Rust",
       runtime: "rust",
-      modules: ["subscription-center-rust"],
+      // The OIDC layer mounts onto an Axum router, so it cannot stand alone.
+      modules: ["axum", "subscription-center-rust"],
       policies: []
     });
 
@@ -702,11 +824,17 @@ runTest("composes the subscription-center-rust integration for an Axum service",
     assert.match(env, /OPENID_ISSUER_URL=/);
     assert.match(env, /SESSION_KILL_SECRET=/);
 
+    // postgres arrives through axum's `implies`, without being asked for.
     const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
-    assert.deepEqual(metadata.modules, ["subscription-center-rust"]);
+    assert.deepEqual(metadata.modules, ["axum", "subscription-center-rust", "postgres"]);
 
     const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
     assert.match(agents, /Module: SubscriptionCenter/);
+
+    // The OIDC crates must reach Cargo.toml without a hand-edit.
+    const cargoToml = fs.readFileSync(path.join(targetDir, "Cargo.toml"), "utf8");
+    assert.match(cargoToml, /jsonwebtoken = "9"/);
+    assert.match(cargoToml, /reqwest = \{/);
 
     const doctorResult = compositionDoctor(repoRoot, targetDir);
     assert.equal(doctorResult.ok, true);

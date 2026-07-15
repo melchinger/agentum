@@ -3,6 +3,7 @@
   "category": "frontend",
   "description": "Next.js 15 App Router with TypeScript and React",
   "compatibleRuntimes": ["node"],
+  "conflictsWith": ["sveltekit", "sveltekit-static"],
   "directories": [
     "apps/web/src/app",
     "apps/web/src/components",

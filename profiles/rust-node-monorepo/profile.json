@@ -1,0 +1,37 @@
+{
+  "name": "rust-node-monorepo",
+  "description": "Monorepo with a Rust/Axum backend and a Node frontend workspace, sharing one PostgreSQL database.",
+  "runtimes": ["rust", "node"],
+  "defaultModules": ["axum", "sqlx-migrate", "sveltekit", "postgres"],
+  "recommendedModules": ["ts-library", "subscription-center-rust", "subscription-center-sveltekit", "single-container-fullstack"],
+  "requiredPolicies": ["security-baseline", "ci", "privacy-baseline", "performance-baseline"],
+  "rules": [
+    {
+      "level": "info",
+      "when": {},
+      "message": "Backend lives at src/ (Cargo workspace root), frontend at apps/web, shared libraries at packages/."
+    },
+    {
+      "level": "warning",
+      "when": {
+        "modulesAny": ["sqlite"]
+      },
+      "message": "SQLite does not fit a multi-process monorepo backend. Use PostgreSQL."
+    },
+    {
+      "level": "warning",
+      "when": {
+        "modulesAny": ["subscription-center-rust"],
+        "modulesMissing": ["subscription-center-sveltekit"]
+      },
+      "message": "The backend authenticates via KanIDM but the frontend does not. Add subscription-center-sveltekit, or the admin UI has no way to start a session."
+    },
+    {
+      "level": "warning",
+      "when": {
+        "modulesMissing": ["sqlx-migrate"]
+      },
+      "message": "The Axum backend talks to PostgreSQL but no migration workflow is selected. Add sqlx-migrate."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+import { describe, expect, it } from "vitest";
+import { ConfigError, createClient } from "../src/index";
+
+describe("createClient", () => {
+  it("keeps the configured api url", () => {
+    expect(createClient({ apiUrl: "https://example.test" }).apiUrl).toBe("https://example.test");
+  });
+
+  it("normalizes a trailing slash so callers can join paths safely", () => {
+    expect(createClient({ apiUrl: "https://example.test/" }).apiUrl).toBe("https://example.test");
+  });
+
+  it("rejects an empty api url instead of failing later at request time", () => {
+    expect(() => createClient({ apiUrl: "" })).toThrow(ConfigError);
+  });
+});

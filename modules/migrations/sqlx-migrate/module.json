@@ -1,0 +1,20 @@
+{
+  "name": "sqlx-migrate",
+  "category": "migrations",
+  "description": "Versioned SQL migrations for Rust services, applied with the sqlx CLI.",
+  "compatibleRuntimes": ["rust"],
+  "conflictsWith": ["alembic", "liquibase"],
+  "directories": [
+    "migrations"
+  ],
+  "requiredFiles": [
+    "migrations/README.md"
+  ],
+  "commands": [
+    "migrate: sqlx migrate run",
+    "migrate-add: sqlx migrate add <name>"
+  ],
+  "detect": {
+    "anyFiles": ["migrations/README.md"]
+  }
+}
