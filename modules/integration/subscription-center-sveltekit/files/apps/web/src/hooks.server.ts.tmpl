@@ -1,0 +1,36 @@
+import type { Handle } from "@sveltejs/kit";
+import { getConfig } from "$lib/server/config";
+import { SESSION_COOKIE, getSession, readSessionCookie } from "$lib/server/session";
+
+/**
+ * Resolve the current user from the signed session cookie into
+ * `event.locals.user` on every request. Downstream `+page.server.ts` /
+ * `+server.ts` handlers gate on `event.locals.user` (see the `requireLogin`
+ * and `hasGroup` helpers in `$lib/server/config`).
+ */
+export const handle: Handle = async ({ event, resolve }) => {
+  const cfg = getConfig();
+
+  if (!cfg.enabled) {
+    // OPENID_ENABLED=false: bypass auth with a dev user. Never use in prod.
+    console.warn(
+      "[subscription-center] OPENID_ENABLED=false — auth bypassed with a dev user."
+    );
+    event.locals.user = { uid: "dev", groups: cfg.adminGroup ? [cfg.adminGroup] : [] };
+    return resolve(event);
+  }
+
+  event.locals.user = null;
+  const cookie = event.cookies.get(SESSION_COOKIE);
+  if (cookie) {
+    const sid = await readSessionCookie(cookie);
+    if (sid) {
+      event.locals.user = getSession(sid);
+    }
+  }
+
+  return resolve(event);
+};
+
+// Re-exported so route handlers can import the guards alongside the hook.
+export { requireLogin, hasGroup } from "$lib/server/config";

@@ -1,0 +1,36 @@
+import { error, redirect, type RequestHandler } from "@sveltejs/kit";
+import { dev } from "$app/environment";
+import { OIDC_STATE_COOKIE, handleCallback } from "$lib/server/oidc";
+import { SESSION_COOKIE, createSession, signSessionCookie } from "$lib/server/session";
+
+/**
+ * GET /auth/callback?code&state
+ * Validates state, exchanges the code as a confidential client, validates the
+ * id_token (JWKS/ES256/aud/iss/nonce) and establishes a server-side session.
+ */
+export const GET: RequestHandler = async ({ url, cookies }) => {
+  const params = Object.fromEntries(url.searchParams) as Record<string, string>;
+  const stateCookie = cookies.get(OIDC_STATE_COOKIE);
+
+  let user;
+  try {
+    user = await handleCallback(params, stateCookie);
+  } catch (err) {
+    console.error("[subscription-center] OIDC callback failed:", err);
+    throw error(401, "OIDC login failed.");
+  } finally {
+    cookies.delete(OIDC_STATE_COOKIE, { path: "/" });
+  }
+
+  const sid = createSession(user);
+  const cookieValue = await signSessionCookie(sid);
+  cookies.set(SESSION_COOKIE, cookieValue, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: !dev,
+    maxAge: 60 * 60 * 24 * 7
+  });
+
+  throw redirect(302, "/");
+};

@@ -1,0 +1,79 @@
+import { SignJWT, jwtVerify } from "jose";
+import type { AppUser } from "./config";
+import { sessionKey } from "./config";
+
+/**
+ * Server-side session store.
+ *
+ * In-memory only: swap for Redis/KV in production so sessions survive restarts
+ * and can be shared across instances. The session-kill endpoint relies on the
+ * uid -> sessionIds reverse index to revoke every session for a user at once.
+ */
+const sessions = new Map<string, AppUser>();
+const byUid = new Map<string, Set<string>>();
+
+export const SESSION_COOKIE = "sc_session";
+
+export function createSession(user: AppUser): string {
+  const sid = crypto.randomUUID();
+  sessions.set(sid, user);
+  let ids = byUid.get(user.uid);
+  if (!ids) {
+    ids = new Set<string>();
+    byUid.set(user.uid, ids);
+  }
+  ids.add(sid);
+  return sid;
+}
+
+export function getSession(sid: string): AppUser | null {
+  return sessions.get(sid) ?? null;
+}
+
+export function destroySession(sid: string): void {
+  const user = sessions.get(sid);
+  sessions.delete(sid);
+  if (user) {
+    const ids = byUid.get(user.uid);
+    if (ids) {
+      ids.delete(sid);
+      if (ids.size === 0) {
+        byUid.delete(user.uid);
+      }
+    }
+  }
+}
+
+/** Invalidate ALL sessions for a uid. Returns the number revoked. */
+export function destroyAllForUid(uid: string): number {
+  const ids = byUid.get(uid);
+  if (!ids) {
+    return 0;
+  }
+  let count = 0;
+  for (const sid of ids) {
+    sessions.delete(sid);
+    count += 1;
+  }
+  byUid.delete(uid);
+  return count;
+}
+
+/** Sign a session id into a compact JWS cookie value (HMAC over SESSION_SECRET). */
+export async function signSessionCookie(sid: string): Promise<string> {
+  return new SignJWT({ sid })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("7d")
+    .sign(sessionKey());
+}
+
+/** Verify a session cookie and return its session id, or null when invalid. */
+export async function readSessionCookie(value: string): Promise<string | null> {
+  try {
+    const { payload } = await jwtVerify(value, sessionKey());
+    return typeof payload.sid === "string" ? payload.sid : null;
+  } catch {
+    return null;
+  }
+}

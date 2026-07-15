@@ -1,0 +1,21 @@
+use sqlx::postgres::PgPoolOptions;
+use sqlx::PgPool;
+use std::time::Duration;
+
+/// Shared application state. Cheap to clone: `PgPool` is an `Arc` internally.
+#[derive(Clone)]
+pub struct AppState {
+    pub db: PgPool,
+}
+
+impl AppState {
+    pub async fn connect(database_url: &str) -> Result<Self, sqlx::Error> {
+        let db = PgPoolOptions::new()
+            .max_connections(5)
+            .acquire_timeout(Duration::from_secs(5))
+            .connect(database_url)
+            .await?;
+
+        Ok(Self { db })
+    }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "ts-library",
+  "category": "frontend",
+  "description": "Standalone TypeScript library built with Vite in library mode, for an embeddable SDK or player shipped as its own package.",
+  "compatibleRuntimes": ["node"],
+  "directories": [
+    "packages/lib/src",
+    "packages/lib/tests"
+  ],
+  "requiredFiles": [
+    "packages/lib/package.json",
+    "packages/lib/tsconfig.json",
+    "packages/lib/tsconfig.build.json",
+    "packages/lib/vite.config.ts",
+    "packages/lib/src/index.ts"
+  ],
+  "commands": [
+    "build: cd packages/lib && npm run build",
+    "dev: cd packages/lib && npm run dev",
+    "test: cd packages/lib && npm test"
+  ],
+  "detect": {
+    "anyFiles": ["packages/lib/vite.config.ts"]
+  }
+}

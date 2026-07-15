@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentum.dev/schemas/common-cargo-dependencies.schema.json",
+  "title": "Agentum Cargo Dependencies",
+  "description": "Crates contributed to the generated Cargo.toml [dependencies] table. Every selected module contributes its own entries; the generator merges them and reports a conflict when two modules request the same crate with different requirements.",
+  "type": "object",
+  "minProperties": 1,
+  "additionalProperties": false,
+  "patternProperties": {
+    "^[a-zA-Z0-9_-]+$": {
+      "oneOf": [
+        {
+          "description": "Shorthand for a plain version requirement, e.g. \"1\" or \"0.8\".",
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "description": "Expanded dependency table.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version"],
+          "properties": {
+            "version": { "type": "string", "minLength": 1 },
+            "features": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "default-features": { "type": "boolean" },
+            "optional": { "type": "boolean" }
+          }
+        }
+      ]
+    }
+  }
+}

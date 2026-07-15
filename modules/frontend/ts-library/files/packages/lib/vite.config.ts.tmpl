@@ -1,0 +1,21 @@
+import { resolve } from "node:path";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  build: {
+    lib: {
+      entry: resolve(__dirname, "src/index.ts"),
+      // The global name only matters for the UMD build, when the library is
+      // dropped in via a <script> tag rather than bundled.
+      name: "{{PROJECT_SLUG}}",
+      fileName: (format) => (format === "es" ? "index.js" : "index.cjs"),
+      formats: ["es", "cjs"]
+    },
+    sourcemap: true,
+    // A library must not bundle its consumers' dependencies. Add every runtime
+    // dependency here, otherwise it ends up duplicated in the consuming app.
+    rollupOptions: {
+      external: []
+    }
+  }
+});

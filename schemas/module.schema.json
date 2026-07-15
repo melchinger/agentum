@@ -62,6 +62,12 @@
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
     },
+    "cargoDependencies": {
+      "$ref": "https://agentum.dev/schemas/common-cargo-dependencies.schema.json"
+    },
+    "npmDependencies": {
+      "$ref": "https://agentum.dev/schemas/common-npm-dependencies.schema.json"
+    },
     "detect": {
       "$ref": "https://agentum.dev/schemas/common-detect.schema.json"
     },

@@ -1,0 +1,80 @@
+# SubscriptionCenter-Anbindung ({{PROJECT_NAME}})
+
+Diese App ist "SC-ready": Login ueber KanIDM-OIDC, Autorisierung ueber
+KanIDM-Gruppenmitgliedschaft und Zwangs-Logout ueber den Session-Kill-Webhook des
+subscriptionCenter-Dienstes.
+
+## Zugriffsmodell (KanIDM-Gruppe -> Rolle)
+
+Die App kennt keine eigene Benutzerverwaltung. Autorisierung ergibt sich
+ausschliesslich aus der **KanIDM-Gruppenmitgliedschaft**:
+
+- KanIDM liefert die Gruppen im `id_token`-Claim `groups` (SPN-Form `gruppe@domain`;
+  die App entfernt den `@domain`-Suffix automatisch).
+- `require_login` schuetzt eine Route fuer alle angemeldeten Nutzer.
+- `require_group("<gruppenname>")` verlangt Mitgliedschaft in genau dieser Gruppe.
+- `OPENID_ADMIN_GROUP` benennt optional die Admin-Gruppe der App.
+
+Wer Zugriff bekommt, wird also im KanIDM (bzw. im subscriptionCenter) ueber
+Gruppenzuordnung gesteuert, nicht in der App.
+
+## Schritt 1 — App im subscriptionCenter registrieren (`/apps`)
+
+Im subscriptionCenter-Admin-UI unter **`/apps`**:
+
+1. **OAuth2-Client anlegen** -> neue App/Client erstellen. Danach `client_id` und das
+   **vertrauliche Basic-Secret** (`client_secret`) notieren. Dies ist ein
+   *confidential* Client.
+2. **Groups-Scope-Map hinzufuegen** -> Scope `groups` auf die App mappen, damit der
+   `groups`-Claim im `id_token` mitgeliefert wird (zusaetzlich zu `openid email
+   profile`).
+3. **Redirect-Origin/-URL setzen** -> die Callback-URL dieser App eintragen:
+   `https://<host>/auth/callback` (lokal: `http://localhost:8000/auth/callback`).
+4. **Per-App-Login-URL setzen** -> auf die Login-Route dieser App zeigen:
+   `https://<host>/auth/login`.
+5. **Session-Kill-Webhook konfigurieren**:
+   - Webhook **aktivieren**.
+   - **URL** = `https://<host>/internal/session-kill` (Endpoint dieser App).
+   - **Bearer-Secret** = derselbe Wert wie `SESSION_KILL_SECRET` in der `.env`.
+   - Kontrakt identisch zu WordPress
+     `POST /wp-json/openid-role-mapper/v1/session-kill`:
+     `Authorization: Bearer <SESSION_KILL_SECRET>`, Body `{"uid": "<uid>"}`,
+     Antwort `204 No Content`.
+
+## Schritt 2 — `.env` befuellen
+
+Die vom Generator erzeugte `.env.example` nach `.env` kopieren und ausfuellen:
+
+```
+OPENID_ENABLED=true
+OPENID_ISSUER_URL=https://id.ch01.melchinger.net/oauth2/openid/<deine-app>
+OPENID_CLIENT_ID=<aus Schritt 1.1>
+OPENID_CLIENT_SECRET=<aus Schritt 1.1 - vertrauliches Secret>
+OPENID_REDIRECT_URL=https://<host>/auth/callback
+OPENID_SCOPES=openid email profile groups
+OPENID_ADMIN_GROUP=<optionale KanIDM-Admin-Gruppe>
+SESSION_SECRET=<zufaelliges 32-Byte-Secret, z.B. `openssl rand -hex 32`>
+SESSION_KILL_SECRET=<identisch zum Webhook-Bearer-Secret aus Schritt 1.5>
+```
+
+- `OPENID_ISSUER_URL` muss exakt dem `iss`-Claim des Providers entsprechen (ohne
+  abschliessenden Slash).
+- `SESSION_KILL_SECRET` **muss** identisch zum im subscriptionCenter hinterlegten
+  Bearer-Secret sein, sonst antwortet der Webhook mit `401`.
+
+## Lokale Entwicklung ohne OIDC
+
+Mit `OPENID_ENABLED=false` wird die Authentifizierung umgangen (`require_login` und
+`require_group` lassen durch) und eine Warnung geloggt. Nur fuer lokale Entwicklung
+verwenden.
+
+## Endpunkte
+
+| Methode | Pfad                       | Zweck                                            |
+| ------- | -------------------------- | ------------------------------------------------ |
+| GET     | `/auth/login`              | OIDC-Login starten (PKCE, state, nonce)          |
+| GET     | `/auth/callback`           | Code einloesen, `id_token` (ES256) validieren    |
+| POST    | `/auth/logout`             | Aktuelle Session beenden                          |
+| POST    | `/internal/session-kill`   | Alle Sessions einer `uid` invalidieren (Webhook) |
+
+Router einbinden: siehe `AGENTS.md` / `agents.md` (`app.include_router(auth_router)`).

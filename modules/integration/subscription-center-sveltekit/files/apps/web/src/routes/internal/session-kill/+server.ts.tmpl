@@ -1,0 +1,53 @@
+import { error, type RequestHandler } from "@sveltejs/kit";
+import { getConfig } from "$lib/server/config";
+import { destroyAllForUid } from "$lib/server/session";
+
+/** Constant-time string compare so the shared bearer secret cannot be timing-probed. */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * POST /internal/session-kill
+ * Called by the subscriptionCenter service to revoke every session for a user
+ * (e.g. after an access change or account disable). Mirrors the WordPress
+ * `POST /wp-json/openid-role-mapper/v1/session-kill` webhook.
+ *
+ * Auth: `Authorization: Bearer <SESSION_KILL_SECRET>`. Body: `{"uid":"..."}`.
+ * Responds 204 No Content on success.
+ */
+export const POST: RequestHandler = async ({ request }) => {
+  const cfg = getConfig();
+
+  const auth = request.headers.get("authorization") ?? "";
+  const expected = `Bearer ${cfg.sessionKillSecret}`;
+  if (!safeEqual(auth, expected)) {
+    throw error(401, "Unauthorized");
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    throw error(400, "Invalid JSON body.");
+  }
+
+  const uid =
+    body && typeof body === "object" && typeof (body as { uid?: unknown }).uid === "string"
+      ? (body as { uid: string }).uid
+      : "";
+  if (!uid) {
+    throw error(400, "Missing uid.");
+  }
+
+  destroyAllForUid(uid);
+
+  return new Response(null, { status: 204 });
+};

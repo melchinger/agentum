@@ -1,0 +1,121 @@
+//! In-memory session store with per-uid indexing for session-kill.
+//!
+//! Swap the maps for Redis/Postgres in production — the important shape is that
+//! `kill_uid` can drop **every** session belonging to a uid in one call, which
+//! is what subscriptionCenter's session-kill webhook needs on subscription loss.
+
+use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
+
+use super::oidc::{random_token, AuthFlow, AuthUser};
+
+#[derive(Clone)]
+pub struct Session {
+    pub uid: String,
+    pub groups: Vec<String>,
+    pub displayname: Option<String>,
+    pub email: Option<String>,
+}
+
+#[derive(Default)]
+pub struct SessionStore {
+    sessions: Mutex<HashMap<String, Session>>,
+    by_uid: Mutex<HashMap<String, HashSet<String>>>,
+    /// Pending login flows, keyed by OIDC `state` between /auth/login and /auth/callback.
+    flows: Mutex<HashMap<String, AuthFlow>>,
+}
+
+impl SessionStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stash_flow(&self, flow: AuthFlow) {
+        if let Ok(mut flows) = self.flows.lock() {
+            flows.insert(flow.state.clone(), flow);
+        }
+    }
+
+    pub fn take_flow(&self, state: &str) -> Option<AuthFlow> {
+        self.flows.lock().ok()?.remove(state)
+    }
+
+    pub fn create(&self, user: AuthUser) -> String {
+        let sid = random_token(32);
+        let uid = user.uid.clone();
+        if let Ok(mut sessions) = self.sessions.lock() {
+            sessions.insert(
+                sid.clone(),
+                Session {
+                    uid: user.uid,
+                    groups: user.groups,
+                    displayname: user.displayname,
+                    email: user.email,
+                },
+            );
+        }
+        if let Ok(mut by_uid) = self.by_uid.lock() {
+            by_uid.entry(uid).or_default().insert(sid.clone());
+        }
+        sid
+    }
+
+    pub fn get(&self, sid: &str) -> Option<Session> {
+        self.sessions.lock().ok()?.get(sid).cloned()
+    }
+
+    pub fn remove(&self, sid: &str) {
+        let removed = self.sessions.lock().ok().and_then(|mut s| s.remove(sid));
+        if let Some(session) = removed {
+            if let Ok(mut by_uid) = self.by_uid.lock() {
+                if let Some(set) = by_uid.get_mut(&session.uid) {
+                    set.remove(sid);
+                }
+            }
+        }
+    }
+
+    /// Session-kill: drop every session for a uid. Returns the count killed.
+    pub fn kill_uid(&self, uid: &str) -> usize {
+        let sids: Vec<String> = self
+            .by_uid
+            .lock()
+            .ok()
+            .and_then(|mut m| m.remove(uid))
+            .map(|set| set.into_iter().collect())
+            .unwrap_or_default();
+        if let Ok(mut sessions) = self.sessions.lock() {
+            for sid in &sids {
+                sessions.remove(sid);
+            }
+        }
+        sids.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn user(uid: &str) -> AuthUser {
+        AuthUser {
+            uid: uid.to_string(),
+            displayname: None,
+            email: None,
+            groups: vec!["apps".to_string()],
+        }
+    }
+
+    #[test]
+    fn kill_uid_drops_all_sessions() {
+        let store = SessionStore::new();
+        let a = store.create(user("alice"));
+        let b = store.create(user("alice"));
+        assert!(store.get(&a).is_some());
+        assert!(store.get(&b).is_some());
+
+        assert_eq!(store.kill_uid("alice"), 2);
+        assert!(store.get(&a).is_none());
+        assert!(store.get(&b).is_none());
+    }
+}

@@ -79,6 +79,23 @@ Nutze diesen Pfad für bewusst kombinierbare Zielstacks.
 3. nur modul-spezifische Dateien in `files/` ablegen
 4. `compatibleRuntimes`, `requiresModules`, `conflictsWith` und `implies` sauber pflegen
 
+**Abhängigkeiten gehören ins Manifest, nicht in eine Anleitung.** Crates über
+`cargoDependencies`, npm-Pakete über `npmDependencies` (mit `target`, wenn nicht die
+Root-`package.json` gemeint ist). Der Generator mischt sie in die jeweilige
+Manifest-Datei. Wenn deine `agents.md` einen Satz enthält wie „trage folgende
+Abhängigkeiten ein", ist das Modul nicht fertig — dann muss der Nutzer nacharbeiten,
+und beim nächsten Generieren ist seine Änderung wieder weg.
+
+**Prüfe, wem eine Datei gehört.** `applyOperations` schreibt sequenziell, die letzte
+Schreiboperation gewinnt — kommentarlos. Zwei Module mit demselben Pfad überschreiben
+sich in Kategorie-Reihenfolge (`backend` vor `frontend` vor `integration` …). Entweder
+besitzt genau ein Modul die Datei, oder die Module deklarieren `conflictsWith`, oder
+der Inhalt wird als Daten gemischt.
+
+**Neues Feld im Manifest?** Zuerst ins passende `schemas/*.schema.json`. Der Validator
+leitet seine erlaubten Keys daraus ab — ein Feld ohne Schema-Eintrag ist ein Fehler,
+kein stiller Zusatz.
+
 ### Neue Policy
 
 1. `policies/<name>/policy.json` anlegen
@@ -100,6 +117,18 @@ Zusätzlich sinnvoll:
 node scripts/init-repo.js validate-stack --profile saas-web-app --runtime python --modules htmx,mcp-python
 node scripts/init-repo.js explain-stack --profile desktop-app
 ```
+
+`VALID` heißt nur, dass die Manifeste zueinander passen — nicht, dass das Ergebnis
+baut. Bei einem neuen oder geänderten Modul zusätzlich in ein Temp-Verzeichnis
+generieren und die echte Toolchain laufen lassen:
+
+```bash
+node scripts/init-repo.js new /tmp/probe --runtime rust --project-name probe --modules axum
+cd /tmp/probe && cargo check
+```
+
+Nach jeder Katalogänderung `npm run docs:catalog` — `npm test` schlägt sonst fehl,
+weil `docs/catalog.md` veraltet ist.
 
 ## Pflege-Regeln
 

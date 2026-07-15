@@ -1,0 +1,61 @@
+"""Configuration for the SubscriptionCenter / KanIDM OIDC integration.
+
+All values are read from the environment (see ``.env.example``). No secrets are
+hardcoded. See ``docs/subscription-center.md`` for how to obtain each value from
+the subscriptionCenter admin UI.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from functools import lru_cache
+
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _as_bool(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in _TRUTHY
+
+
+@dataclass(frozen=True)
+class OidcSettings:
+    """Immutable snapshot of the OIDC / session configuration."""
+
+    enabled: bool
+    issuer_url: str
+    client_id: str
+    client_secret: str
+    redirect_url: str
+    scopes: str
+    admin_group: str
+    session_secret: str
+    session_kill_secret: str
+
+    @property
+    def scope_list(self) -> list[str]:
+        return [scope for scope in self.scopes.split() if scope]
+
+    @property
+    def discovery_url(self) -> str:
+        return f"{self.issuer_url}/.well-known/openid-configuration"
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> OidcSettings:
+    """Load settings once from the process environment."""
+
+    return OidcSettings(
+        enabled=_as_bool(os.environ.get("OPENID_ENABLED"), default=False),
+        # Trailing slash stripped so issuer comparison and discovery URL are stable.
+        issuer_url=os.environ.get("OPENID_ISSUER_URL", "").rstrip("/"),
+        client_id=os.environ.get("OPENID_CLIENT_ID", ""),
+        client_secret=os.environ.get("OPENID_CLIENT_SECRET", ""),
+        redirect_url=os.environ.get("OPENID_REDIRECT_URL", ""),
+        scopes=os.environ.get("OPENID_SCOPES", "openid email profile groups"),
+        admin_group=os.environ.get("OPENID_ADMIN_GROUP", ""),
+        session_secret=os.environ.get("SESSION_SECRET", ""),
+        session_kill_secret=os.environ.get("SESSION_KILL_SECRET", ""),
+    )

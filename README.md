@@ -95,11 +95,20 @@ Mehr Details dazu stehen in `docs/composition-model.md`.
 
 ## Wichtige Dokumente
 
-- `docs/quick-reference.md` schnelle Copy/Paste-Befehle
-- `docs/usage-guide.md` vollständige Schritt-für-Schritt-Anleitung
-- `docs/composition-model.md` Überblick über das neue Katalogmodell
-- `docs/disclaimer-and-safety.md` Hinweise, Grenzen, Haftungsausschluss
-- `docs/maintainer-guide.md` interne Pflege und Erweiterung
+Suche dir das Dokument nach der Frage aus, die du hast:
+
+| Frage | Dokument |
+| --- | --- |
+| Was gibt es im Katalog? | [`docs/catalog.md`](docs/catalog.md) — generiert, immer aktuell |
+| Wie lautet der Befehl nochmal? | [`docs/quick-reference.md`](docs/quick-reference.md) |
+| Wie gehe ich Schritt für Schritt vor? | [`docs/usage-guide.md`](docs/usage-guide.md) |
+| Wie funktioniert das Kompositionsmodell? | [`docs/composition-model.md`](docs/composition-model.md) |
+| Wie erweitere ich den Katalog? | [`docs/maintainer-guide.md`](docs/maintainer-guide.md) |
+| Was darf das Tool nicht? | [`docs/disclaimer-and-safety.md`](docs/disclaimer-and-safety.md) |
+| Ich bin ein Agent und arbeite *an* agentum | [`AGENTS.md`](AGENTS.md) |
+
+`docs/catalog.md` ist ein Artefakt: nicht von Hand ändern, sondern `npm run docs:catalog`.
+Die Manifeste sind die Wahrheit, die Prosa beschreibt nur, wie sie zusammenspielen.
 
 ## Haftung und Verantwortung
 

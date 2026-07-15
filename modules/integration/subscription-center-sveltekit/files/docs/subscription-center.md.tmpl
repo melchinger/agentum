@@ -1,0 +1,71 @@
+# SubscriptionCenter-Integration ({{PROJECT_NAME}})
+
+Diese SvelteKit-App (`apps/web`) wird ueber **KanIDM** (OIDC) authentifiziert und
+ueber **subscriptionCenter** verwaltet. Login, Autorisierung nach Gruppen und das
+Widerrufen von Sessions laufen komplett in der SvelteKit-Server-Schicht.
+
+## Zugriffsmodell: KanIDM-Gruppen -> Rollen
+
+- Die Authentifizierung erfolgt gegen KanIDM als OIDC-Provider.
+- Der `groups`-Scope liefert die KanIDM-Gruppenmitgliedschaften im id_token.
+- KanIDM stellt Bezeichner als SPN dar (`name@realm`); die Server-Schicht
+  entfernt den Realm-Teil, sodass `uid` und Gruppennamen den in
+  subscriptionCenter gepflegten **Rollen** entsprechen.
+- Rollen werden im App-Code ueber `hasGroup(locals, "<gruppe>")` geprueft.
+  `OPENID_ADMIN_GROUP` benennt die Gruppe mit Admin-Rechten.
+
+## Checkliste: App in subscriptionCenter registrieren (`/apps`)
+
+1. **Neue App anlegen** in der subscriptionCenter-Admin unter `/apps`.
+2. **OAuth2-Client (vertraulich)** erzeugen:
+   - Typ: Confidential Client (Basic-Auth am Token-Endpoint).
+   - `client_id` uebernehmen -> `OPENID_CLIENT_ID`.
+   - `client_secret` (Basic Secret) erzeugen -> `OPENID_CLIENT_SECRET`.
+3. **Scope-Map fuer Gruppen** aktivieren, damit der `groups`-Scope die
+   KanIDM-Gruppen ausliefert (Scopes: `openid email profile groups`).
+4. **Redirect-URL** eintragen:
+   - Lokal: `http://localhost:5173/auth/callback`
+   - Produktiv: `https://<host>/auth/callback`
+   - -> `OPENID_REDIRECT_URL`
+5. **Per-App-Login-URL** setzen auf `/auth/login` (Startpunkt des OIDC-Flows).
+6. **Session-Kill-Webhook** aktivieren:
+   - URL: `https://<host>/internal/session-kill`
+   - Auth: `Authorization: Bearer <SESSION_KILL_SECRET>`
+   - Body: `{"uid":"..."}` -> invalidiert **alle** Sessions dieser uid, `204`.
+   - Gleiche Semantik wie `POST /wp-json/openid-role-mapper/v1/session-kill`
+     unter WordPress.
+7. **Issuer-URL** der App aus subscriptionCenter uebernehmen:
+   - `https://id.ch01.melchinger.net/oauth2/openid/<app>` -> `OPENID_ISSUER_URL`
+   - Discovery laeuft ueber `{OPENID_ISSUER_URL}/.well-known/openid-configuration`.
+
+## `.env` befuellen
+
+```
+OPENID_ENABLED=true
+OPENID_ISSUER_URL=https://id.ch01.melchinger.net/oauth2/openid/<app>
+OPENID_CLIENT_ID=<client-id>
+OPENID_CLIENT_SECRET=<client-secret>
+OPENID_REDIRECT_URL=http://localhost:5173/auth/callback
+OPENID_SCOPES=openid email profile groups
+OPENID_ADMIN_GROUP=<admin-gruppe>
+SESSION_SECRET=<zufaelliges-32-byte-secret>
+SESSION_KILL_SECRET=<geheimnis-geteilt-mit-subscriptioncenter>
+```
+
+Hinweise:
+- `SESSION_SECRET` signiert die Cookies (State- und Session-Cookie). Zufaellig
+  und mindestens 32 Byte waehlen.
+- `SESSION_KILL_SECRET` muss identisch in subscriptionCenter und in der App
+  hinterlegt sein.
+- `OPENID_ENABLED=false` umgeht den Login mit einem Dev-User (nur lokal!).
+- Secrets werden zur Laufzeit ueber `$env/dynamic/private` gelesen und landen
+  nie im Client-Bundle.
+
+## Endpunkte
+
+| Methode | Pfad | Zweck |
+| ------- | ---- | ----- |
+| GET  | `/auth/login`           | OIDC-Flow starten (state, nonce, PKCE) |
+| GET  | `/auth/callback`        | Code-Tausch, id_token-Validierung, Session |
+| POST | `/auth/logout`          | Aktuelle Session beenden |
+| POST | `/internal/session-kill`| Alle Sessions einer uid widerrufen (Webhook) |

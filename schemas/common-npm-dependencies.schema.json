@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentum.dev/schemas/common-npm-dependencies.schema.json",
+  "title": "Agentum npm Dependencies",
+  "description": "Packages merged into a generated package.json. `target` names which manifest to merge into, so a module can extend the workspace it belongs to (for example apps/web/package.json) rather than the repository root.",
+  "type": "object",
+  "additionalProperties": false,
+  "anyOf": [
+    { "required": ["dependencies"] },
+    { "required": ["devDependencies"] }
+  ],
+  "properties": {
+    "target": {
+      "description": "Path of the package.json to merge into, relative to the repository root. Defaults to package.json.",
+      "type": "string",
+      "pattern": "^([a-zA-Z0-9._-]+/)*package\\.json$"
+    },
+    "dependencies": {
+      "$ref": "#/$defs/packageMap"
+    },
+    "devDependencies": {
+      "$ref": "#/$defs/packageMap"
+    }
+  },
+  "$defs": {
+    "packageMap": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(@[a-z0-9._-]+/)?[a-z0-9._-]+$": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

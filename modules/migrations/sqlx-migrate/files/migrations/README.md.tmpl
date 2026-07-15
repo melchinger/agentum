@@ -1,0 +1,28 @@
+# Migrations — {{PROJECT_NAME}}
+
+Versioned SQL migrations applied with the `sqlx` CLI.
+
+## Setup
+
+```bash
+cargo install sqlx-cli --no-default-features --features rustls,postgres
+```
+
+`sqlx` reads `DATABASE_URL` from the environment or `.env`.
+
+## Usage
+
+```bash
+sqlx migrate add create_tours   # writes migrations/<timestamp>_create_tours.sql
+sqlx migrate run                # applies everything pending
+sqlx migrate info               # shows applied vs pending
+```
+
+## Rules
+
+- Migrations are append-only. Never edit one that has run anywhere but your own
+  machine — `sqlx` records a checksum per migration and refuses to run when an
+  applied file has changed.
+- To undo a shipped migration, write a new one that reverses it.
+- Every migration must be reviewable on its own. No `DROP` without an explicit note
+  in the pull request describing what data disappears.

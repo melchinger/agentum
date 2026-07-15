@@ -1,0 +1,241 @@
+//! KanIDM OIDC Relying Party (Authorization Code + PKCE, confidential client).
+//!
+//! Hand-rolled against KanIDM's OIDC endpoints: discovery →
+//! `{issuer}/.well-known/openid-configuration`, then authorize / token, and
+//! ID-token validation via JWKS (`jsonwebtoken`). KanIDM only supports the
+//! Authorization Code flow with PKCE and signs ID tokens with ES256. The
+//! `groups` claim is KanIDM-specific and carries the authorization data.
+
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
+use jsonwebtoken::jwk::JwkSet;
+use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
+use reqwest::Client;
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
+use url::Url;
+
+use super::config::OidcConfig;
+
+/// The transient per-login state that must survive the redirect to KanIDM and
+/// back. Held server-side keyed by `state` (see `SessionStore::stash_flow`).
+#[derive(Clone)]
+pub struct AuthFlow {
+    pub state: String,
+    pub nonce: String,
+    pub verifier: String,
+}
+
+/// The authenticated subject resolved from a validated ID token.
+#[derive(Debug, Clone)]
+pub struct AuthUser {
+    pub uid: String,
+    pub displayname: Option<String>,
+    pub email: Option<String>,
+    /// KanIDM groups, SPN-suffix stripped (`apps@id.ch01` -> `apps`).
+    pub groups: Vec<String>,
+}
+
+pub struct KanidmOidc {
+    cfg: OidcConfig,
+    http: Client,
+}
+
+#[derive(Deserialize)]
+struct Metadata {
+    authorization_endpoint: String,
+    token_endpoint: String,
+    jwks_uri: String,
+}
+
+#[derive(Deserialize)]
+struct TokenResponse {
+    id_token: String,
+}
+
+#[derive(Deserialize)]
+struct Claims {
+    #[serde(default)]
+    sub: String,
+    #[serde(default)]
+    preferred_username: Option<String>,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    groups: Vec<String>,
+    #[serde(default)]
+    nonce: Option<String>,
+}
+
+impl KanidmOidc {
+    pub fn new(cfg: OidcConfig) -> Result<Self, String> {
+        let http = Client::builder()
+            .build()
+            .map_err(|e| format!("http client: {e}"))?;
+        Ok(Self { cfg, http })
+    }
+
+    pub fn config(&self) -> &OidcConfig {
+        &self.cfg
+    }
+
+    async fn discover(&self) -> Result<Metadata, String> {
+        let url = format!(
+            "{}/.well-known/openid-configuration",
+            self.cfg.issuer_url.trim_end_matches('/')
+        );
+        let resp = self
+            .http
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("discovery: {e}"))?;
+        if !resp.status().is_success() {
+            return Err(format!("discovery -> HTTP {}", resp.status()));
+        }
+        resp.json()
+            .await
+            .map_err(|e| format!("discovery decode: {e}"))
+    }
+
+    /// Build the KanIDM authorize URL and the matching PKCE/nonce flow.
+    pub async fn begin(&self) -> Result<(String, AuthFlow), String> {
+        let meta = self.discover().await?;
+        let state = random_token(16);
+        let nonce = random_token(16);
+        let verifier = random_token(32);
+        let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+
+        let url = Url::parse_with_params(
+            &meta.authorization_endpoint,
+            &[
+                ("response_type", "code"),
+                ("client_id", self.cfg.client_id.as_str()),
+                ("redirect_uri", self.cfg.redirect_url.as_str()),
+                ("scope", self.cfg.scopes.as_str()),
+                ("state", state.as_str()),
+                ("nonce", nonce.as_str()),
+                ("code_challenge", challenge.as_str()),
+                ("code_challenge_method", "S256"),
+            ],
+        )
+        .map_err(|e| format!("authorize url: {e}"))?;
+
+        Ok((
+            url.to_string(),
+            AuthFlow {
+                state,
+                nonce,
+                verifier,
+            },
+        ))
+    }
+
+    /// Exchange the code, validate the ID token, return the authenticated user.
+    pub async fn complete(&self, code: &str, flow: &AuthFlow) -> Result<AuthUser, String> {
+        let meta = self.discover().await?;
+
+        // Confidential client: send client_id + client_secret alongside the PKCE verifier.
+        let resp = self
+            .http
+            .post(&meta.token_endpoint)
+            .form(&[
+                ("grant_type", "authorization_code"),
+                ("code", code),
+                ("redirect_uri", self.cfg.redirect_url.as_str()),
+                ("client_id", self.cfg.client_id.as_str()),
+                ("client_secret", self.cfg.client_secret.as_str()),
+                ("code_verifier", flow.verifier.as_str()),
+            ])
+            .send()
+            .await
+            .map_err(|e| format!("token exchange: {e}"))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            let snippet: String = body.chars().take(200).collect();
+            return Err(format!("token exchange -> HTTP {status}: {snippet}"));
+        }
+        let token: TokenResponse = resp
+            .json()
+            .await
+            .map_err(|e| format!("token decode: {e}"))?;
+
+        // Validate the ID token against the JWKS.
+        let header =
+            decode_header(&token.id_token).map_err(|e| format!("token header: {e}"))?;
+        let kid = header
+            .kid
+            .ok_or_else(|| "token has no kid".to_string())?;
+
+        let jwks: JwkSet = self
+            .http
+            .get(&meta.jwks_uri)
+            .send()
+            .await
+            .map_err(|e| format!("jwks: {e}"))?
+            .json()
+            .await
+            .map_err(|e| format!("jwks decode: {e}"))?;
+        let jwk = jwks
+            .find(&kid)
+            .ok_or_else(|| format!("no JWKS key for kid {kid}"))?;
+        let key = DecodingKey::from_jwk(jwk).map_err(|e| format!("decoding key: {e}"))?;
+
+        let mut validation = Validation::new(Algorithm::ES256);
+        validation.set_audience(&[self.cfg.client_id.as_str()]);
+        validation.set_issuer(&[self.cfg.issuer_url.as_str()]);
+        let data = decode::<Claims>(&token.id_token, &key, &validation)
+            .map_err(|e| format!("token invalid: {e}"))?;
+        let claims = data.claims;
+
+        if claims.nonce.as_deref() != Some(flow.nonce.as_str()) {
+            return Err("nonce mismatch".to_string());
+        }
+
+        let uid = claims
+            .preferred_username
+            .as_deref()
+            .map(strip_spn)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(claims.sub);
+        let groups = claims.groups.iter().map(|g| strip_spn(g)).collect();
+
+        Ok(AuthUser {
+            uid,
+            displayname: claims.name,
+            email: claims.email,
+            groups,
+        })
+    }
+}
+
+/// Strips a `@domain` SPN suffix (`alice@id.ch01.melchinger.net` -> `alice`).
+pub fn strip_spn(s: &str) -> String {
+    s.split('@').next().unwrap_or(s).to_string()
+}
+
+/// A URL-safe random token of `n` bytes (base64url, no padding).
+pub(crate) fn random_token(n: usize) -> String {
+    let mut buf = vec![0u8; n];
+    getrandom::getrandom(&mut buf).expect("OS RNG");
+    URL_SAFE_NO_PAD.encode(buf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strips_spn_suffix() {
+        assert_eq!(strip_spn("alice@id.ch01.melchinger.net"), "alice");
+        assert_eq!(strip_spn("alice"), "alice");
+    }
+
+    #[test]
+    fn random_tokens_differ() {
+        assert_ne!(random_token(16), random_token(16));
+    }
+}

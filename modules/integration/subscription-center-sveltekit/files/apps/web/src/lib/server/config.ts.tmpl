@@ -1,0 +1,74 @@
+import { env } from "$env/dynamic/private";
+
+/**
+ * Shared SubscriptionCenter / KanIDM OIDC configuration.
+ *
+ * All secrets are read from `$env/dynamic/private` so they are resolved at
+ * runtime (never bundled into the client). See `docs/subscription-center.md`
+ * for the values that have to be registered in the subscriptionCenter admin.
+ */
+
+export interface AppUser {
+  uid: string;
+  groups: string[];
+}
+
+export interface OidcConfig {
+  enabled: boolean;
+  issuerUrl: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUrl: string;
+  scopes: string;
+  adminGroup: string;
+  sessionSecret: string;
+  sessionKillSecret: string;
+}
+
+function bool(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined || value === "") {
+    return fallback;
+  }
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+export function getConfig(): OidcConfig {
+  return {
+    enabled: bool(env.OPENID_ENABLED, true),
+    issuerUrl: env.OPENID_ISSUER_URL ?? "",
+    clientId: env.OPENID_CLIENT_ID ?? "",
+    clientSecret: env.OPENID_CLIENT_SECRET ?? "",
+    redirectUrl: env.OPENID_REDIRECT_URL ?? "http://localhost:5173/auth/callback",
+    scopes: env.OPENID_SCOPES ?? "openid email profile groups",
+    adminGroup: env.OPENID_ADMIN_GROUP ?? "",
+    sessionSecret: env.SESSION_SECRET ?? "change-me-generate-a-random-32-byte-secret",
+    sessionKillSecret: env.SESSION_KILL_SECRET ?? "change-me-shared-with-subscriptioncenter"
+  };
+}
+
+/**
+ * KanIDM presents identifiers as SPNs (`name@domain`). Strip the realm so the
+ * uid / group names line up with what subscriptionCenter maps to roles.
+ */
+export function stripSpn(value: string): string {
+  const at = value.indexOf("@");
+  return at === -1 ? value : value.slice(0, at);
+}
+
+/** HMAC key derived from SESSION_SECRET, used to sign cookies with `jose`. */
+export function sessionKey(): Uint8Array {
+  return new TextEncoder().encode(getConfig().sessionSecret);
+}
+
+/** Throw a 401 unless a user is present on `locals`. Returns the user. */
+export function requireLogin(locals: App.Locals): AppUser {
+  if (!locals.user) {
+    throw new Error("UNAUTHENTICATED");
+  }
+  return locals.user;
+}
+
+/** True when the current user is a member of the named KanIDM group. */
+export function hasGroup(locals: App.Locals, name: string): boolean {
+  return Boolean(locals.user?.groups.includes(name));
+}

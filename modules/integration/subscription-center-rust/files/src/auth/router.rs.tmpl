@@ -1,0 +1,188 @@
+//! Axum router wiring the OIDC login, logout and session-kill endpoints.
+//!
+//! Mount it into your app:
+//! ```ignore
+//! let config = auth::OidcConfig::from_env().expect("OIDC config");
+//! let state = auth::build(config).expect("auth state");
+//! let app = axum::Router::new()
+//!     .merge(auth::router(state.clone()))
+//!     // ... your own routes; gate them with auth::current_user(&state, &headers)
+//!     ;
+//! ```
+
+use std::sync::Arc;
+
+use axum::extract::{Query, State};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Redirect, Response};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use serde::Deserialize;
+
+use super::config::OidcConfig;
+use super::oidc::KanidmOidc;
+use super::session::{Session, SessionStore};
+
+const SESSION_COOKIE: &str = "sc_session";
+
+pub struct AuthState {
+    pub oidc: KanidmOidc,
+    pub store: SessionStore,
+    pub config: OidcConfig,
+}
+
+pub type SharedAuth = Arc<AuthState>;
+
+/// Build the shared auth state from a validated config.
+pub fn build(config: OidcConfig) -> Result<SharedAuth, String> {
+    let oidc = KanidmOidc::new(config.clone())?;
+    Ok(Arc::new(AuthState {
+        oidc,
+        store: SessionStore::new(),
+        config,
+    }))
+}
+
+pub fn router(state: SharedAuth) -> Router {
+    Router::new()
+        .route("/auth/login", get(login))
+        .route("/auth/callback", get(callback))
+        .route("/auth/logout", post(logout))
+        .route("/internal/session-kill", post(session_kill))
+        .with_state(state)
+}
+
+async fn login(State(st): State<SharedAuth>) -> Response {
+    if !st.config.enabled {
+        // Dev bypass: nothing to log in against.
+        return Redirect::to("/").into_response();
+    }
+    match st.oidc.begin().await {
+        Ok((url, flow)) => {
+            st.store.stash_flow(flow);
+            Redirect::to(&url).into_response()
+        }
+        Err(e) => {
+            tracing::error!("oidc begin: {e}");
+            (StatusCode::BAD_GATEWAY, "login unavailable").into_response()
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct CallbackParams {
+    code: Option<String>,
+    state: Option<String>,
+}
+
+async fn callback(State(st): State<SharedAuth>, Query(p): Query<CallbackParams>) -> Response {
+    let (Some(code), Some(state)) = (p.code, p.state) else {
+        return (StatusCode::BAD_REQUEST, "missing code/state").into_response();
+    };
+    // The unguessable `state` correlates this callback with the pending PKCE flow.
+    let Some(flow) = st.store.take_flow(&state) else {
+        return (StatusCode::BAD_REQUEST, "unknown or expired state").into_response();
+    };
+    match st.oidc.complete(&code, &flow).await {
+        Ok(user) => {
+            tracing::info!(uid = %user.uid, "login");
+            let sid = st.store.create(user);
+            let cookie = format!(
+                "{SESSION_COOKIE}={sid}; Path=/; HttpOnly; SameSite=Lax; Secure"
+            );
+            cookie_response(&cookie, Redirect::to("/").into_response())
+        }
+        Err(e) => {
+            tracing::warn!("oidc callback: {e}");
+            (StatusCode::UNAUTHORIZED, "authentication failed").into_response()
+        }
+    }
+}
+
+async fn logout(State(st): State<SharedAuth>, headers: HeaderMap) -> Response {
+    if let Some(sid) = session_id_from(&headers) {
+        st.store.remove(&sid);
+    }
+    let cookie =
+        format!("{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0");
+    cookie_response(&cookie, StatusCode::NO_CONTENT.into_response())
+}
+
+#[derive(Deserialize)]
+struct SessionKillBody {
+    uid: String,
+}
+
+/// Called by subscriptionCenter when a user loses access. Mirrors the WordPress
+/// OpenID Role Mapper contract: `POST` + JSON `{"uid": ...}` + `Authorization: Bearer <secret>`.
+async fn session_kill(
+    State(st): State<SharedAuth>,
+    headers: HeaderMap,
+    Json(body): Json<SessionKillBody>,
+) -> Response {
+    let expected = format!("Bearer {}", st.config.session_kill_secret);
+    let provided = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    if st.config.session_kill_secret.is_empty() || !constant_time_eq(provided, &expected) {
+        return (StatusCode::UNAUTHORIZED, "invalid bearer").into_response();
+    }
+    let killed = st.store.kill_uid(&body.uid);
+    tracing::info!(uid = %body.uid, killed, "session-kill");
+    StatusCode::NO_CONTENT.into_response()
+}
+
+/// Resolve the current user from the session cookie, honouring the dev bypass.
+/// Call this from your own handlers to gate access.
+pub fn current_user(st: &AuthState, headers: &HeaderMap) -> Option<Session> {
+    if !st.config.enabled {
+        return Some(Session {
+            uid: "dev".to_string(),
+            groups: Vec::new(),
+            displayname: Some("Dev User".to_string()),
+            email: None,
+        });
+    }
+    let sid = session_id_from(headers)?;
+    st.store.get(&sid)
+}
+
+/// True when the session holds the given KanIDM group. Use for admin gating, e.g.
+/// `has_group(&session, cfg.admin_group.as_deref().unwrap_or_default())`.
+pub fn has_group(session: &Session, group: &str) -> bool {
+    !group.is_empty() && session.groups.iter().any(|g| g == group)
+}
+
+fn session_id_from(headers: &HeaderMap) -> Option<String> {
+    let cookie = headers.get(header::COOKIE)?.to_str().ok()?;
+    let prefix = format!("{SESSION_COOKIE}=");
+    for part in cookie.split(';') {
+        if let Some(value) = part.trim().strip_prefix(&prefix) {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
+fn cookie_response(cookie: &str, mut response: Response) -> Response {
+    match HeaderValue::from_str(cookie) {
+        Ok(value) => {
+            response.headers_mut().insert(header::SET_COOKIE, value);
+            response
+        }
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "session error").into_response(),
+    }
+}
+
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}

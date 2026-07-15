@@ -28,6 +28,9 @@ const {
 } = require("../scripts/lib/retrofit-engine");
 const { run: runCli } = require("../scripts/init-repo");
 const { validateManifestCollection } = require("../scripts/validate-manifests");
+const { mergeCargoDependencies, renderCargoDependencies } = require("../scripts/lib/cargo-dependencies");
+const { applyNpmDependencies, mergeNpmDependencies } = require("../scripts/lib/npm-dependencies");
+const { buildCatalog, catalogPath } = require("../scripts/generate-catalog");
 
 const repoRoot = path.resolve(__dirname, "..");
 const pendingAsyncTests = [];
@@ -50,6 +53,14 @@ function withTempDir(callback) {
   } catch (error) {
     cleanup();
     throw error;
+  }
+}
+
+// Copies the catalog into a temp dir so a test can corrupt a manifest without
+// touching the real repository.
+function copyCatalog(sourceRoot, targetRoot) {
+  for (const dir of ["schemas", "modules", "profiles", "policies", "runtimes", "stacks"]) {
+    fs.cpSync(path.join(sourceRoot, dir), path.join(targetRoot, dir), { recursive: true });
   }
 }
 
@@ -117,6 +128,262 @@ runTest("lists all supported variants", () => {
 runTest("validates manifest collections", () => {
   const errors = validateManifestCollection(repoRoot);
   assert.deepEqual(errors, []);
+});
+
+runTest("docs/catalog.md matches the catalog", () => {
+  // Compare content, not line endings: git checks the file out with CRLF where
+  // core.autocrlf is on, while the generator always writes LF.
+  const normalize = (text) => text.replace(/\r\n/g, "\n");
+  assert.equal(
+    normalize(fs.readFileSync(catalogPath(repoRoot), "utf8")),
+    normalize(buildCatalog(repoRoot)),
+    "docs/catalog.md is stale. Run `npm run docs:catalog`."
+  );
+});
+
+runTest("rejects manifest keys that no schema declares", () => {
+  withTempDir((tempDir) => {
+    copyCatalog(repoRoot, tempDir);
+    const target = path.join(tempDir, "modules", "storage", "sqlite", "module.json");
+    const manifest = JSON.parse(fs.readFileSync(target, "utf8"));
+    manifest.dependencies = ["rusqlite"];
+    fs.writeFileSync(target, JSON.stringify(manifest, null, 2), "utf8");
+
+    const errors = validateManifestCollection(tempDir);
+    assert.ok(
+      errors.some((entry) => entry.includes('unknown key "dependencies"')),
+      `expected an unknown-key error, got: ${JSON.stringify(errors)}`
+    );
+  });
+});
+
+runTest("rejects manifests missing a schema-required key", () => {
+  withTempDir((tempDir) => {
+    copyCatalog(repoRoot, tempDir);
+    const target = path.join(tempDir, "modules", "storage", "sqlite", "module.json");
+    const manifest = JSON.parse(fs.readFileSync(target, "utf8"));
+    delete manifest.compatibleRuntimes;
+    fs.writeFileSync(target, JSON.stringify(manifest, null, 2), "utf8");
+
+    const errors = validateManifestCollection(tempDir);
+    assert.ok(
+      errors.some((entry) => entry.includes('missing required key "compatibleRuntimes"')),
+      `expected a missing-key error, got: ${JSON.stringify(errors)}`
+    );
+  });
+});
+
+runTest("rejects profiles naming a runtime that does not exist", () => {
+  withTempDir((tempDir) => {
+    copyCatalog(repoRoot, tempDir);
+    const target = path.join(tempDir, "profiles", "fullstack-monorepo", "profile.json");
+    const manifest = JSON.parse(fs.readFileSync(target, "utf8"));
+    manifest.runtimes = ["node", "cobol"];
+    fs.writeFileSync(target, JSON.stringify(manifest, null, 2), "utf8");
+
+    const errors = validateManifestCollection(tempDir);
+    assert.ok(
+      errors.some((entry) => entry.includes('runtime "cobol" does not exist')),
+      `expected a runtime cross-reference error, got: ${JSON.stringify(errors)}`
+    );
+  });
+});
+
+runTest("merges cargo dependencies from runtime and modules", () => {
+  const { dependencies, errors } = mergeCargoDependencies([
+    { label: "module:axum", cargoDependencies: { axum: "0.8", serde: { version: "1", features: ["derive"] } } },
+    { label: "module:subscription-center-rust", cargoDependencies: { axum: "0.8", serde: { version: "1", features: ["rc"] } } }
+  ]);
+
+  assert.deepEqual(errors, []);
+  // The same crate requested twice collapses into one entry with unioned features.
+  assert.deepEqual(dependencies.get("serde").features, ["derive", "rc"]);
+  assert.equal(renderCargoDependencies(dependencies).split("\n").length, 2);
+});
+
+runTest("reports conflicting cargo version requirements", () => {
+  const { errors } = mergeCargoDependencies([
+    { label: "module:axum", cargoDependencies: { axum: "0.8" } },
+    { label: "module:legacy", cargoDependencies: { axum: "0.7" } }
+  ]);
+
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0].includes("axum"));
+  assert.ok(errors[0].includes("module:legacy"));
+});
+
+runTest("renders cargo dependencies as valid toml", () => {
+  const { dependencies } = mergeCargoDependencies([
+    {
+      label: "module:axum",
+      cargoDependencies: {
+        anyhow: "1",
+        sqlx: { version: "0.8", "default-features": false, features: ["postgres"] }
+      }
+    }
+  ]);
+
+  assert.equal(
+    renderCargoDependencies(dependencies),
+    'anyhow = "1"\nsqlx = { version = "0.8", default-features = false, features = ["postgres"] }'
+  );
+});
+
+runTest("merges npm dependencies into the package.json a module targets", () => {
+  const { byTarget, errors } = mergeNpmDependencies([
+    { label: "module:a", npmDependencies: { dependencies: { express: "^4.19.2" } } },
+    {
+      label: "module:b",
+      npmDependencies: { target: "apps/web/package.json", dependencies: { jose: "^5.9.6" } }
+    }
+  ]);
+
+  assert.deepEqual(errors, []);
+  // Contributions stay in their own manifest instead of piling up at the root.
+  assert.deepEqual(byTarget.get("package.json"), { dependencies: { express: "^4.19.2" } });
+  assert.deepEqual(byTarget.get("apps/web/package.json"), { dependencies: { jose: "^5.9.6" } });
+});
+
+runTest("reports conflicting npm version ranges", () => {
+  const { errors } = mergeNpmDependencies([
+    { label: "module:a", npmDependencies: { dependencies: { "openid-client": "^5.7.0" } } },
+    { label: "module:b", npmDependencies: { dependencies: { "openid-client": "^6.0.0" } } }
+  ]);
+
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0].includes("openid-client"));
+});
+
+runTest("npm merge preserves the fields the target already declares", () => {
+  const merged = applyNpmDependencies(
+    JSON.stringify({ name: "app", scripts: { test: "node --test" }, dependencies: { zod: "^3.0.0" } }),
+    { dependencies: { express: "^4.19.2" } }
+  );
+  const manifest = JSON.parse(merged);
+
+  assert.deepEqual(manifest.scripts, { test: "node --test" });
+  assert.deepEqual(Object.keys(manifest.dependencies), ["express", "zod"]);
+});
+
+runTest("composes an axum service with merged cargo dependencies", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "api");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Tour API",
+      runtime: "rust",
+      modules: ["axum", "subscription-center-rust"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    const cargoToml = fs.readFileSync(path.join(targetDir, "Cargo.toml"), "utf8");
+    // Both modules contribute to the one Cargo.toml the rust runtime owns.
+    assert.ok(cargoToml.includes('axum = "0.8"'), cargoToml);
+    assert.ok(cargoToml.includes("sqlx = {"), cargoToml);
+    assert.ok(cargoToml.includes('jsonwebtoken = "9"'), cargoToml);
+    // The runtime's placeholder must not survive into the generated manifest.
+    assert.ok(!cargoToml.includes("{{"), cargoToml);
+    // axum is declared by both modules and must appear exactly once.
+    assert.equal(cargoToml.split("\n").filter((line) => line.startsWith("axum = ")).length, 1);
+  });
+});
+
+runTest("subscription-center-rust requires a backend to mount on", () => {
+  const composition = resolveComposition(repoRoot, {
+    runtime: "rust",
+    modules: ["subscription-center-rust"]
+  });
+
+  assert.ok(
+    composition.errors.some((entry) => entry.includes("requires module `axum`")),
+    JSON.stringify(composition.errors)
+  );
+});
+
+runTest("composes a rust+node monorepo across both runtimes", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "mono");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "TourForge",
+      profile: "rust-node-monorepo",
+      modules: ["ts-library"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // Both runtimes contribute their own manifest without clobbering each other.
+    assert.equal(fs.existsSync(path.join(targetDir, "Cargo.toml")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "package.json")), true);
+    // Backend, frontend app and shared library each land in their own tree.
+    assert.equal(fs.existsSync(path.join(targetDir, "src", "main.rs")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "apps", "web", "package.json")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "packages", "lib", "vite.config.ts")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "migrations", "README.md")), true);
+  });
+});
+
+runTest("warns when the backend authenticates but the frontend cannot", () => {
+  const composition = resolveComposition(repoRoot, {
+    profile: "rust-node-monorepo",
+    modules: ["subscription-center-rust"]
+  });
+
+  assert.deepEqual(composition.errors, []);
+  assert.ok(
+    composition.warnings.some((entry) => entry.includes("subscription-center-sveltekit")),
+    JSON.stringify(composition.warnings)
+  );
+});
+
+runTest("routes npm dependencies to the workspace that needs them", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "mono");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "TourForge",
+      profile: "rust-node-monorepo",
+      modules: ["subscription-center-sveltekit"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // The auth layer belongs to the frontend workspace, not the repository root.
+    const web = JSON.parse(fs.readFileSync(path.join(targetDir, "apps", "web", "package.json"), "utf8"));
+    assert.equal(web.dependencies["openid-client"], "^5.7.0");
+    assert.equal(web.dependencies.jose, "^5.9.6");
+    // sveltekit's own devDependencies must survive the merge.
+    assert.ok(web.devDependencies["@sveltejs/kit"], JSON.stringify(web.devDependencies));
+
+    const root = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.equal(root.dependencies, undefined, JSON.stringify(root));
+  });
+});
+
+runTest("rejects npm dependencies aimed at a manifest nobody provides", () => {
+  withTempDir((tempDir) => {
+    copyCatalog(repoRoot, tempDir);
+    const target = path.join(tempDir, "modules", "integration", "subscription-center-node", "module.json");
+    const manifest = JSON.parse(fs.readFileSync(target, "utf8"));
+    manifest.npmDependencies.target = "apps/nowhere/package.json";
+    fs.writeFileSync(target, JSON.stringify(manifest, null, 2), "utf8");
+    fs.cpSync(path.join(repoRoot, "templates"), path.join(tempDir, "templates"), { recursive: true });
+
+    assert.throws(
+      () => collectCompositionOperations(tempDir, {
+        targetDir: path.join(tempDir, "out"),
+        projectName: "SC",
+        runtime: "node",
+        modules: ["subscription-center-node"],
+        policies: []
+      }),
+      /no runtime or module provides that file/
+    );
+  });
 });
 
 runTest("lists composition catalog entries", () => {
@@ -531,6 +798,165 @@ runTest("tauri module accepts non-react frontends without errors", () => {
     modules: ["tauri", "svelte"]
   });
   assert.deepEqual(composition.errors, []);
+});
+
+runTest("composes the subscription-center-rust integration for an Axum service", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "sc-rust");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SC Rust",
+      runtime: "rust",
+      // The OIDC layer mounts onto an Axum router, so it cannot stand alone.
+      modules: ["axum", "subscription-center-rust"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // OIDC relying-party source lands under src/auth, plus the registration doc.
+    for (const file of ["mod.rs", "config.rs", "oidc.rs", "session.rs", "router.rs"]) {
+      assert.equal(fs.existsSync(path.join(targetDir, "src", "auth", file)), true);
+    }
+    assert.equal(fs.existsSync(path.join(targetDir, "docs", "subscription-center.md")), true);
+
+    // The flow must be Authorization Code + PKCE (S256) validated against JWKS.
+    const oidc = fs.readFileSync(path.join(targetDir, "src", "auth", "oidc.rs"), "utf8");
+    assert.match(oidc, /code_challenge_method/);
+    assert.match(oidc, /Algorithm::ES256/);
+    assert.match(oidc, /set_audience/);
+    assert.match(oidc, /nonce mismatch/);
+
+    // Session-kill must drop every session for a uid.
+    const session = fs.readFileSync(path.join(targetDir, "src", "auth", "session.rs"), "utf8");
+    assert.match(session, /fn kill_uid/);
+
+    // The shared SC/KanIDM env contract must reach .env.example.
+    const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(env, /OPENID_ISSUER_URL=/);
+    assert.match(env, /SESSION_KILL_SECRET=/);
+
+    // postgres arrives through axum's `implies`, without being asked for.
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.deepEqual(metadata.modules, ["axum", "subscription-center-rust", "postgres"]);
+
+    const agents = fs.readFileSync(path.join(targetDir, "AGENTS.md"), "utf8");
+    assert.match(agents, /Module: SubscriptionCenter/);
+
+    // The OIDC crates must reach Cargo.toml without a hand-edit.
+    const cargoToml = fs.readFileSync(path.join(targetDir, "Cargo.toml"), "utf8");
+    assert.match(cargoToml, /jsonwebtoken = "9"/);
+    assert.match(cargoToml, /reqwest = \{/);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+  });
+});
+
+runTest("composes the subscription-center-fastapi integration over fastapi", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "sc-fastapi");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SC Api",
+      runtime: "python",
+      modules: ["fastapi", "subscription-center-fastapi"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    const authDir = path.join(targetDir, "src", "sc_api", "interfaces", "http", "auth");
+    for (const file of ["__init__.py", "config.py", "oidc.py", "session.py", "session_kill.py", "router.py"]) {
+      assert.equal(fs.existsSync(path.join(authDir, file)), true);
+    }
+    assert.equal(fs.existsSync(path.join(targetDir, "docs", "subscription-center.md")), true);
+
+    // ID-token validation: ES256 + audience + issuer + nonce.
+    const oidc = fs.readFileSync(path.join(authDir, "oidc.py"), "utf8");
+    assert.match(oidc, /ES256/);
+    assert.match(oidc, /code_challenge_method/);
+
+    const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(env, /SESSION_KILL_SECRET=/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.deepEqual(metadata.modules, ["fastapi", "subscription-center-fastapi"]);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+  });
+});
+
+runTest("composes the subscription-center-node integration for an Express backend", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "sc-node");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SC Node",
+      runtime: "node",
+      modules: ["subscription-center-node"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    for (const file of ["index.ts", "config.ts", "oidc.ts", "session.ts", "router.ts"]) {
+      assert.equal(fs.existsSync(path.join(targetDir, "src", "auth", file)), true);
+    }
+    assert.equal(fs.existsSync(path.join(targetDir, "docs", "subscription-center.md")), true);
+
+    const router = fs.readFileSync(path.join(targetDir, "src", "auth", "router.ts"), "utf8");
+    assert.match(router, /\/internal\/session-kill/);
+    assert.match(router, /timingSafeEqual/);
+
+    const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(env, /SESSION_KILL_SECRET=/);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+  });
+});
+
+runTest("composes the subscription-center-sveltekit integration over sveltekit", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "sc-svelte");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "SC Web",
+      runtime: "node",
+      modules: ["sveltekit", "subscription-center-sveltekit"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    const webSrc = path.join(targetDir, "apps", "web", "src");
+    assert.equal(fs.existsSync(path.join(webSrc, "hooks.server.ts")), true);
+    assert.equal(fs.existsSync(path.join(webSrc, "lib", "server", "oidc.ts")), true);
+    assert.equal(fs.existsSync(path.join(webSrc, "routes", "auth", "callback", "+server.ts")), true);
+    assert.equal(
+      fs.existsSync(path.join(webSrc, "routes", "internal", "session-kill", "+server.ts")),
+      true
+    );
+    assert.equal(fs.existsSync(path.join(targetDir, "docs", "subscription-center.md")), true);
+
+    const kill = fs.readFileSync(
+      path.join(webSrc, "routes", "internal", "session-kill", "+server.ts"),
+      "utf8"
+    );
+    // Bearer check must be constant-time.
+    assert.match(kill, /safeEqual/);
+
+    const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
+    assert.match(env, /OPENID_ISSUER_URL=/);
+
+    const metadata = JSON.parse(fs.readFileSync(path.join(targetDir, ".agentum-template.json"), "utf8"));
+    assert.deepEqual(metadata.modules, ["sveltekit", "subscription-center-sveltekit"]);
+
+    const doctorResult = compositionDoctor(repoRoot, targetDir);
+    assert.equal(doctorResult.ok, true);
+  });
 });
 
 runTest("generates variant specific python package paths", () => {

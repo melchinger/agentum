@@ -1,0 +1,56 @@
+//! OIDC / session configuration, read from the environment.
+//!
+//! When `OPENID_ENABLED=false` the auth layer runs in a **local-dev bypass**:
+//! every request is treated as an anonymous "dev" user so the app boots without
+//! a live KanIDM. Never ship that to production.
+
+use std::env;
+
+#[derive(Clone)]
+pub struct OidcConfig {
+    /// When false, auth is bypassed for local development.
+    pub enabled: bool,
+    /// Client-specific KanIDM issuer, e.g.
+    /// `https://id.ch01.melchinger.net/oauth2/openid/{{PROJECT_SLUG}}`.
+    pub issuer_url: String,
+    pub client_id: String,
+    /// Confidential-client basic secret (from the SC app detail page).
+    pub client_secret: String,
+    pub redirect_url: String,
+    pub scopes: String,
+    /// Optional KanIDM group that gates admin routes (e.g. `{{PROJECT_SLUG}}-admin`).
+    pub admin_group: Option<String>,
+    pub session_secret: String,
+    /// Shared bearer secret subscriptionCenter presents on `/internal/session-kill`.
+    pub session_kill_secret: String,
+}
+
+impl OidcConfig {
+    pub fn from_env() -> Result<Self, String> {
+        let enabled = env::var("OPENID_ENABLED")
+            .map(|v| v != "false")
+            .unwrap_or(true);
+
+        // In the dev bypass we tolerate missing OIDC values; when enabled they are required.
+        let req = |key: &str| -> Result<String, String> {
+            match env::var(key) {
+                Ok(value) if !value.is_empty() => Ok(value),
+                _ if !enabled => Ok(String::new()),
+                _ => Err(format!("missing required env var {key}")),
+            }
+        };
+
+        Ok(Self {
+            enabled,
+            issuer_url: req("OPENID_ISSUER_URL")?,
+            client_id: req("OPENID_CLIENT_ID")?,
+            client_secret: req("OPENID_CLIENT_SECRET")?,
+            redirect_url: req("OPENID_REDIRECT_URL")?,
+            scopes: env::var("OPENID_SCOPES")
+                .unwrap_or_else(|_| "openid email profile groups".to_string()),
+            admin_group: env::var("OPENID_ADMIN_GROUP").ok().filter(|s| !s.is_empty()),
+            session_secret: req("SESSION_SECRET")?,
+            session_kill_secret: req("SESSION_KILL_SECRET")?,
+        })
+    }
+}

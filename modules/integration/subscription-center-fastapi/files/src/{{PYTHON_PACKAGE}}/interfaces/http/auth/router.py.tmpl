@@ -1,0 +1,177 @@
+"""FastAPI router wiring the OIDC login flow, logout, guards and session-kill.
+
+Include it in ``app.py`` via ``app.include_router(auth_router)``. See
+``docs/subscription-center.md`` for the subscriptionCenter registration steps.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Awaitable, Callable
+
+from fastapi import APIRouter, Request, Response, status
+from fastapi.exceptions import HTTPException
+from fastapi.responses import RedirectResponse
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
+from . import oidc
+from .config import OidcSettings, get_settings
+from .session import SESSION_COOKIE, Principal, get_session_manager
+from .session_kill import session_kill_router
+
+logger = logging.getLogger(__name__)
+
+auth_router = APIRouter(tags=["auth"])
+# Session-kill lives at /internal/session-kill; it shares the same session store.
+auth_router.include_router(session_kill_router)
+
+FLOW_COOKIE = "sc_flow"
+# The login handshake must complete within 10 minutes.
+FLOW_MAX_AGE_SECONDS = 10 * 60
+
+
+def _flow_serializer(settings: OidcSettings) -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(settings.session_secret or "insecure-dev-secret", salt="sc-flow")
+
+
+def _cookie_secure(settings: OidcSettings) -> bool:
+    # Only require HTTPS-only cookies when the redirect target is itself HTTPS.
+    return settings.redirect_url.startswith("https")
+
+
+@auth_router.get("/auth/login")
+async def login() -> Response:
+    settings = get_settings()
+    if not settings.enabled:
+        logger.warning("OPENID_ENABLED=false: skipping login and redirecting to /")
+        return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+
+    metadata = await oidc.discover(settings.discovery_url)
+    state = oidc.generate_state()
+    nonce = oidc.generate_nonce()
+    pkce = oidc.build_pkce()
+
+    authorize_url = oidc.build_authorize_url(
+        metadata,
+        client_id=settings.client_id,
+        redirect_uri=settings.redirect_url,
+        scopes=settings.scopes,
+        state=state,
+        nonce=nonce,
+        code_challenge=pkce.challenge,
+    )
+
+    response = RedirectResponse(url=authorize_url, status_code=status.HTTP_302_FOUND)
+    flow_cookie = _flow_serializer(settings).dumps(
+        {"state": state, "nonce": nonce, "verifier": pkce.verifier}
+    )
+    response.set_cookie(
+        FLOW_COOKIE,
+        flow_cookie,
+        max_age=FLOW_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=_cookie_secure(settings),
+    )
+    return response
+
+
+@auth_router.get("/auth/callback")
+async def callback(request: Request, code: str = "", state: str = "") -> Response:
+    settings = get_settings()
+    if not settings.enabled:
+        return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+
+    if not code or not state:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="missing code or state")
+
+    raw_flow = request.cookies.get(FLOW_COOKIE)
+    if not raw_flow:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="missing login flow cookie")
+    try:
+        flow = _flow_serializer(settings).loads(raw_flow, max_age=FLOW_MAX_AGE_SECONDS)
+    except (BadSignature, SignatureExpired) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid login flow cookie") from exc
+
+    if state != flow.get("state"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="state mismatch")
+
+    metadata = await oidc.discover(settings.discovery_url)
+    try:
+        id_token = await oidc.exchange_code(
+            metadata,
+            code=code,
+            redirect_uri=settings.redirect_url,
+            client_id=settings.client_id,
+            client_secret=settings.client_secret,
+            code_verifier=flow["verifier"],
+        )
+        claims = oidc.validate_id_token(
+            id_token,
+            jwks_uri=metadata.jwks_uri,
+            client_id=settings.client_id,
+            issuer=settings.issuer_url,
+            nonce=flow["nonce"],
+        )
+    except Exception as exc:  # noqa: BLE001 - surface any OIDC failure as 401
+        logger.warning("OIDC callback failed: %s", exc)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="authentication failed") from exc
+
+    cookie_value = get_session_manager(settings).create(claims.uid, claims.groups)
+    logger.info("login succeeded for uid=%s groups=%s", claims.uid, sorted(claims.groups))
+
+    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    response.set_cookie(
+        SESSION_COOKIE,
+        cookie_value,
+        httponly=True,
+        samesite="lax",
+        secure=_cookie_secure(settings),
+    )
+    response.delete_cookie(FLOW_COOKIE)
+    return response
+
+
+@auth_router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(request: Request) -> Response:
+    get_session_manager().destroy(request.cookies.get(SESSION_COOKIE))
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    response.delete_cookie(SESSION_COOKIE)
+    return response
+
+
+def _resolve_principal(request: Request) -> Principal | None:
+    return get_session_manager().resolve(request.cookies.get(SESSION_COOKIE))
+
+
+async def require_login(request: Request) -> Principal:
+    """Dependency that requires an authenticated session (bypassed in dev)."""
+
+    settings = get_settings()
+    if not settings.enabled:
+        logger.warning("OPENID_ENABLED=false: auth bypassed, injecting dev principal")
+        return Principal(uid="dev-user", groups=frozenset())
+
+    principal = _resolve_principal(request)
+    if principal is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="login required")
+    return principal
+
+
+def require_group(name: str) -> Callable[[Request], Awaitable[Principal]]:
+    """Dependency factory that requires membership in a KanIDM group."""
+
+    async def guard(request: Request) -> Principal:
+        settings = get_settings()
+        if not settings.enabled:
+            logger.warning("OPENID_ENABLED=false: group check '%s' bypassed", name)
+            return Principal(uid="dev-user", groups=frozenset({name}))
+
+        principal = _resolve_principal(request)
+        if principal is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="login required")
+        if not principal.in_group(name):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient group membership")
+        return principal
+
+    return guard

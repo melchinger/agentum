@@ -1,0 +1,66 @@
+# SubscriptionCenter-Anbindung ({{PROJECT_NAME}})
+
+Diese App ist **SC-ready**: Login via OIDC (KanIDM), Autorisierung ueber
+KanIDM-Gruppen und ein Session-Kill-Webhook, ueber den der
+subscriptionCenter-Dienst Sessions widerruft.
+
+## 1. App im subscriptionCenter registrieren (`/apps`)
+
+Im subscriptionCenter-Admin unter **`/apps`** eine neue App anlegen und dabei:
+
+- [ ] **OAuth2-Client** erzeugen. Der Admin liefert `client_id` und ein
+      **Confidential-Secret (HTTP Basic)**. Diese App ist ein vertraulicher
+      Client (client_secret_basic) - kein Public/PKCE-only-Client.
+- [ ] **Groups-Scope-Mapping** aktivieren, damit der Scope `groups` im
+      id_token die KanIDM-Gruppenmitgliedschaften als Claim `groups[]`
+      ausliefert.
+- [ ] **Redirect-URL** eintragen: identisch zu `OPENID_REDIRECT_URL`
+      (Standard `http://localhost:3000/auth/callback`, in Produktion
+      `https://<host>/auth/callback`).
+- [ ] **Per-App-Login-URL** setzen = die `/auth/login`-Route dieser App
+      (`https://<host>/auth/login`). Von dort startet der OIDC-Flow.
+- [ ] **Session-Kill-Webhook aktivieren**:
+      - URL = `https://<host>/internal/session-kill`
+      - Auth = `Authorization: Bearer <SESSION_KILL_SECRET>`
+      - Body = `{"uid":"..."}` (SPN-freier KanIDM-Benutzername)
+      Der Endpunkt spiegelt das WordPress-Pendant
+      `POST /wp-json/openid-role-mapper/v1/session-kill` und liefert `204`.
+
+## 2. `.env` befuellen
+
+Werte aus der Registrierung in die `.env` uebernehmen (siehe
+`.env.example`):
+
+- [ ] `OPENID_ISSUER_URL` = KanIDM-Issuer der App
+      (`https://id.ch01.melchinger.net/oauth2/openid/<client>`). Die App
+      liest `.../.well-known/openid-configuration`.
+- [ ] `OPENID_CLIENT_ID` = vergebene `client_id`.
+- [ ] `OPENID_CLIENT_SECRET` = Confidential-Basic-Secret.
+- [ ] `OPENID_REDIRECT_URL` = exakt die im Admin hinterlegte Redirect-URL.
+- [ ] `OPENID_SCOPES` = `openid email profile groups` (Groups nicht
+      vergessen, sonst kein Rollen-Mapping).
+- [ ] `OPENID_ADMIN_GROUP` = KanIDM-Gruppe fuer Admin-Zugriff (optional).
+- [ ] `SESSION_SECRET` = zufaelliges 32-Byte-Geheimnis fuer Cookie-Signierung.
+- [ ] `SESSION_KILL_SECRET` = **identisch** zum im subscriptionCenter
+      hinterlegten Webhook-Bearer.
+
+Fuer lokale Entwicklung ohne KanIDM: `OPENID_ENABLED=false` - dann wird die
+Auth umgangen (Warnung im Log) und die OIDC-Endpunkte leiten nur auf `/`.
+
+## 3. Zugriffsmodell: KanIDM-Gruppen -> Rollen
+
+Autorisierung basiert ausschliesslich auf **KanIDM-Gruppenmitgliedschaft**:
+
+- Beim Callback werden die Claims `sub`, `preferred_username`, `email`,
+  `name` und `groups[]` gelesen.
+- Die `uid` ist der `preferred_username` (bevorzugt) bzw. `sub`, jeweils
+  ohne KanIDM-SPN-Suffix (`@realm` wird abgeschnitten). Ebenso werden alle
+  Gruppennamen SPN-bereinigt.
+- `requireLogin` erzwingt eine Session; `requireGroup("<gruppe>")` erzwingt
+  Mitgliedschaft in der genannten (SPN-freien) KanIDM-Gruppe.
+- Rollen im Backend = KanIDM-Gruppen. Neue Rolle = neue KanIDM-Gruppe +
+  passender `requireGroup(...)`-Guard. Es gibt keine zweite, lokale
+  Benutzer-/Rollenverwaltung - KanIDM ist die einzige Quelle der Wahrheit.
+- Widerruf: Entfernt der Admin einen Benutzer aus einer Gruppe (oder
+  deaktiviert ihn), ruft subscriptionCenter den Session-Kill-Webhook auf und
+  alle aktiven Sessions dieser `uid` werden sofort ungueltig.

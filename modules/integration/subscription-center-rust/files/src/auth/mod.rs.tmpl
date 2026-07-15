@@ -1,0 +1,22 @@
+//! SubscriptionCenter / KanIDM OIDC integration for this Axum service.
+//!
+//! Drop-in relying-party for the KanIDM identity store that backs
+//! subscriptionCenter. Provides:
+//!   * `GET  /auth/login`            — begin the Authorization Code + PKCE flow
+//!   * `GET  /auth/callback`         — exchange the code, validate the ID token
+//!   * `POST /auth/logout`           — drop the local session
+//!   * `POST /internal/session-kill` — revoke a user's sessions on subscription loss
+//!
+//! Authorization is by **KanIDM group membership** (the `groups` claim), never a
+//! local table — the same model subscriptionCenter enforces. See
+//! `docs/subscription-center.md` for how to register this app in the SC admin UI.
+
+pub mod config;
+pub mod oidc;
+pub mod router;
+pub mod session;
+
+pub use config::OidcConfig;
+pub use oidc::{AuthUser, KanidmOidc};
+pub use router::{build, current_user, has_group, router, AuthState, SharedAuth};
+pub use session::{Session, SessionStore};

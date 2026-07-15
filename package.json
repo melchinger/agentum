@@ -8,6 +8,7 @@
   },
   "scripts": {
     "validate:manifests": "node scripts/validate-manifests.js",
+    "docs:catalog": "node scripts/generate-catalog.js",
     "test": "node tests/run-tests.js",
     "init-repo": "node ./scripts/init-repo.js"
   },

@@ -1,0 +1,99 @@
+/**
+ * Session configuration, the uid -> sessionIds registry, and the
+ * session-kill invalidation used by the internal webhook.
+ */
+import session, { MemoryStore, type SessionOptions } from "express-session";
+
+import { openidEnabled, sessionSecret } from "./config.js";
+
+/**
+ * Application-facing session shape. Auth-request material lives here only
+ * between `/auth/login` and `/auth/callback`.
+ */
+declare module "express-session" {
+  interface SessionData {
+    /** Established identity (SPN-stripped KanIDM username or sub). */
+    uid?: string;
+    /** SPN-stripped KanIDM group names. */
+    groups?: string[];
+    /** Pending OIDC state, cleared once the callback consumes it. */
+    pending?: {
+      state: string;
+      nonce: string;
+      codeVerifier: string;
+    };
+  }
+}
+
+/**
+ * In-memory session store. Fine for a single process / local dev; swap for
+ * Redis/connect-redis in production so sessions survive restarts and scale
+ * across instances.
+ */
+export const sessionStore = new MemoryStore();
+
+export const sessionOptions: SessionOptions = {
+  store: sessionStore,
+  secret: sessionSecret,
+  name: "sc.sid",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: "lax",
+    // Enable in production (requires HTTPS/TLS termination in front).
+    secure: !openidEnabled ? false : process.env.NODE_ENV === "production",
+    maxAge: 1000 * 60 * 60 * 8,
+  },
+};
+
+/**
+ * uid -> set of active session ids. Lets the session-kill webhook find and
+ * destroy every session belonging to a revoked user. Swap for a shared
+ * store alongside the session store when moving off in-memory.
+ */
+const sessionsByUid = new Map<string, Set<string>>();
+
+/** Record a freshly authenticated session so it can be killed later. */
+export function registerSession(uid: string, sessionId: string): void {
+  let ids = sessionsByUid.get(uid);
+  if (!ids) {
+    ids = new Set<string>();
+    sessionsByUid.set(uid, ids);
+  }
+  ids.add(sessionId);
+}
+
+/** Forget a single session id (e.g. on explicit logout). */
+export function forgetSession(uid: string, sessionId: string): void {
+  const ids = sessionsByUid.get(uid);
+  if (!ids) {
+    return;
+  }
+  ids.delete(sessionId);
+  if (ids.size === 0) {
+    sessionsByUid.delete(uid);
+  }
+}
+
+/**
+ * Invalidate ALL sessions for a uid. Returns the number of sessions
+ * destroyed. Mirrors the WordPress role-mapper session-kill semantics.
+ */
+export function killSessionsForUid(uid: string): Promise<number> {
+  const ids = sessionsByUid.get(uid);
+  sessionsByUid.delete(uid);
+  if (!ids || ids.size === 0) {
+    return Promise.resolve(0);
+  }
+  return Promise.all(
+    [...ids].map(
+      (sid) =>
+        new Promise<void>((resolve) => {
+          sessionStore.destroy(sid, () => resolve());
+        }),
+    ),
+  ).then((results) => results.length);
+}
+
+export { session };

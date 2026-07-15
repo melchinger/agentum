@@ -1,0 +1,41 @@
+{
+  "name": "subscription-center-node",
+  "category": "integration",
+  "description": "Macht ein Node.js/TypeScript-Backend (Express) SC-ready: OIDC-Login via KanIDM, Autorisierung ueber KanIDM-Gruppen und ein Session-Kill-Webhook, ueber den der subscriptionCenter-Dienst Sessions widerruft. Additiv - liefert Auth-Quellcode und Doku und ergaenzt die package.json der Runtime.",
+  "compatibleRuntimes": ["node"],
+  "npmDependencies": {
+    "dependencies": {
+      "openid-client": "^5.6.5",
+      "express": "^4.19.2",
+      "express-session": "^1.18.0"
+    },
+    "devDependencies": {
+      "@types/express": "^4.17.21",
+      "@types/express-session": "^1.18.0",
+      "@types/node": "^22.0.0"
+    }
+  },
+  "directories": ["src/auth", "docs"],
+  "requiredFiles": [
+    "src/auth/index.ts",
+    "src/auth/config.ts",
+    "src/auth/oidc.ts",
+    "src/auth/session.ts",
+    "src/auth/router.ts",
+    "docs/subscription-center.md"
+  ],
+  "env": [
+    "OPENID_ENABLED=true",
+    "OPENID_ISSUER_URL=https://id.ch01.melchinger.net/oauth2/openid/CHANGE_ME",
+    "OPENID_CLIENT_ID=CHANGE_ME",
+    "OPENID_CLIENT_SECRET=CHANGE_ME",
+    "OPENID_REDIRECT_URL=http://localhost:3000/auth/callback",
+    "OPENID_SCOPES=openid email profile groups",
+    "OPENID_ADMIN_GROUP=",
+    "SESSION_SECRET=change-me-generate-a-random-32-byte-secret",
+    "SESSION_KILL_SECRET=change-me-shared-with-subscriptioncenter"
+  ],
+  "detect": {
+    "packageIndicators": ["openid-client", "express-session"]
+  }
+}

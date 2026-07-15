@@ -1,6 +1,4 @@
 {
   "name": "privacy-baseline",
-  "description": "Zwingende DSGVO-Vorgaben zur Vermeidung von Drittanbieter-Datentransfers (Fonts, CDNs, Tracking).",
-  "type": "policy",
-  "version": "1.0.0"
+  "description": "Zwingende DSGVO-Vorgaben zur Vermeidung von Drittanbieter-Datentransfers (Fonts, CDNs, Tracking)."
 }

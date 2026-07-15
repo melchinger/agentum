@@ -1,0 +1,180 @@
+"""OIDC primitives: discovery, PKCE, token exchange and id_token validation.
+
+Targets KanIDM as the OpenID Provider. The client is a *confidential* client, so the
+token exchange sends ``client_secret`` alongside the PKCE ``code_verifier``. The
+returned ``id_token`` is signed with ES256 and validated against the provider JWKS.
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import logging
+import secrets
+from dataclasses import dataclass
+from urllib.parse import urlencode
+
+import httpx
+import jwt
+
+logger = logging.getLogger(__name__)
+
+_HTTP_TIMEOUT = httpx.Timeout(10.0)
+
+
+@dataclass(frozen=True)
+class ProviderMetadata:
+    authorization_endpoint: str
+    token_endpoint: str
+    jwks_uri: str
+
+
+@dataclass(frozen=True)
+class PkcePair:
+    verifier: str
+    challenge: str
+
+
+@dataclass(frozen=True)
+class AuthenticatedClaims:
+    uid: str
+    groups: frozenset[str]
+    email: str
+    name: str
+
+
+def _b64url_nopad(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _strip_spn(value: str) -> str:
+    """KanIDM emits SPN-form values (``name@domain``); keep only the local part."""
+
+    return value.split("@", 1)[0] if value else value
+
+
+def generate_state() -> str:
+    return secrets.token_urlsafe(24)
+
+
+def generate_nonce() -> str:
+    return secrets.token_urlsafe(24)
+
+
+def build_pkce() -> PkcePair:
+    """Create a PKCE verifier and its S256 challenge."""
+
+    verifier = _b64url_nopad(secrets.token_bytes(32))
+    challenge = _b64url_nopad(hashlib.sha256(verifier.encode("ascii")).digest())
+    return PkcePair(verifier=verifier, challenge=challenge)
+
+
+async def discover(discovery_url: str) -> ProviderMetadata:
+    """Fetch the OpenID Provider metadata document."""
+
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        response = await client.get(discovery_url)
+        response.raise_for_status()
+        doc = response.json()
+    return ProviderMetadata(
+        authorization_endpoint=doc["authorization_endpoint"],
+        token_endpoint=doc["token_endpoint"],
+        jwks_uri=doc["jwks_uri"],
+    )
+
+
+def build_authorize_url(
+    metadata: ProviderMetadata,
+    *,
+    client_id: str,
+    redirect_uri: str,
+    scopes: str,
+    state: str,
+    nonce: str,
+    code_challenge: str,
+) -> str:
+    """Assemble the authorization endpoint redirect URL."""
+
+    params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": scopes,
+        "state": state,
+        "nonce": nonce,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+    }
+    return f"{metadata.authorization_endpoint}?{urlencode(params)}"
+
+
+async def exchange_code(
+    metadata: ProviderMetadata,
+    *,
+    code: str,
+    redirect_uri: str,
+    client_id: str,
+    client_secret: str,
+    code_verifier: str,
+) -> str:
+    """Exchange an authorization code for tokens; return the raw id_token."""
+
+    form = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": redirect_uri,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code_verifier": code_verifier,
+    }
+    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        response = await client.post(metadata.token_endpoint, data=form)
+        response.raise_for_status()
+        tokens = response.json()
+    id_token = tokens.get("id_token")
+    if not id_token:
+        raise ValueError("Token endpoint response did not contain an id_token")
+    return id_token
+
+
+def validate_id_token(
+    id_token: str,
+    *,
+    jwks_uri: str,
+    client_id: str,
+    issuer: str,
+    nonce: str,
+) -> AuthenticatedClaims:
+    """Validate the id_token against JWKS and extract the user claims.
+
+    NOTE: ``jwt.PyJWKClient`` performs a synchronous network fetch of the JWKS. For a
+    scaffold that is acceptable; move it to a background/cached client under heavy load.
+    """
+
+    jwks_client = jwt.PyJWKClient(jwks_uri)
+    signing_key = jwks_client.get_signing_key_from_jwt(id_token)
+    claims = jwt.decode(
+        id_token,
+        signing_key.key,
+        algorithms=["ES256"],
+        audience=client_id,
+        issuer=issuer,
+        options={"require": ["exp", "iat", "aud", "iss"]},
+    )
+
+    if claims.get("nonce") != nonce:
+        raise ValueError("id_token nonce does not match the login request")
+
+    raw_username = claims.get("preferred_username") or ""
+    uid = _strip_spn(raw_username) or claims.get("sub", "")
+    if not uid:
+        raise ValueError("id_token is missing both preferred_username and sub")
+
+    groups = frozenset(_strip_spn(group) for group in claims.get("groups", []) if group)
+
+    return AuthenticatedClaims(
+        uid=uid,
+        groups=groups,
+        email=claims.get("email", ""),
+        name=claims.get("name", ""),
+    )
