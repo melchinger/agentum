@@ -7,6 +7,41 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
+const schemaCache = new Map();
+
+function loadSchema(repoRoot, schemaName) {
+  const cacheKey = path.join(repoRoot, schemaName);
+  if (!schemaCache.has(cacheKey)) {
+    schemaCache.set(cacheKey, readJson(path.join(repoRoot, "schemas", `${schemaName}.schema.json`)));
+  }
+  return schemaCache.get(cacheKey);
+}
+
+// The schemas are the contract for manifest *shape*; the checks below cover semantics
+// (patterns, cross-references) that JSON Schema cannot express. Deriving the key set
+// from the schema keeps the two from drifting apart.
+function validateSchemaShape(manifest, schema, filePath, errors) {
+  assertCondition(isPlainObject(manifest), `${filePath}: manifest must be an object`, errors);
+  if (!isPlainObject(manifest)) {
+    return;
+  }
+
+  for (const key of schema.required || []) {
+    assertCondition(key in manifest, `${filePath}: missing required key "${key}"`, errors);
+  }
+
+  if (schema.additionalProperties === false) {
+    const allowed = new Set(Object.keys(schema.properties || {}));
+    for (const key of Object.keys(manifest)) {
+      assertCondition(
+        allowed.has(key),
+        `${filePath}: unknown key "${key}" is not declared in ${path.basename(schema.$id || "the schema")}`,
+        errors
+      );
+    }
+  }
+}
+
 function listJsonFiles(rootDir, fileName) {
   if (!fs.existsSync(rootDir)) {
     return [];
@@ -183,6 +218,14 @@ function validateProfileManifest(manifest, filePath) {
   if ("recommendedRuntime" in manifest) {
     assertCondition(isNonEmptyString(manifest.recommendedRuntime), `${filePath}: recommendedRuntime must be a non-empty string`, errors);
   }
+  if ("runtimes" in manifest) {
+    validateStringArray(manifest.runtimes, `${filePath}: runtimes`, errors, { minItems: 1 });
+    assertCondition(
+      !("recommendedRuntime" in manifest),
+      `${filePath}: use either runtimes or recommendedRuntime, not both`,
+      errors
+    );
+  }
   for (const field of ["defaultModules", "recommendedModules", "requiredPolicies"]) {
     if (field in manifest) {
       validateStringArray(manifest[field], `${filePath}: ${field}`, errors);
@@ -262,16 +305,22 @@ function validateManifestCollection(repoRoot) {
   const policyItems = listJsonFiles(path.join(repoRoot, "policies"), "policy.json")
     .map((filePath) => ({ filePath, manifest: readJson(filePath) }));
 
+  // Legacy stacks/*/stack.json are deliberately excluded from the shape check: they use
+  // the older `compatibleVariants` key and are normalized further down.
   for (const item of runtimeItems) {
+    validateSchemaShape(item.manifest, loadSchema(repoRoot, "runtime"), item.filePath, errors);
     errors.push(...validateRuntimeManifest(item.manifest, item.filePath));
   }
   for (const item of moduleItems) {
+    validateSchemaShape(item.manifest, loadSchema(repoRoot, "module"), item.filePath, errors);
     errors.push(...validateModuleManifest(item.manifest, item.filePath));
   }
   for (const item of profileItems) {
+    validateSchemaShape(item.manifest, loadSchema(repoRoot, "profile"), item.filePath, errors);
     errors.push(...validateProfileManifest(item.manifest, item.filePath));
   }
   for (const item of policyItems) {
+    validateSchemaShape(item.manifest, loadSchema(repoRoot, "policy"), item.filePath, errors);
     errors.push(...validatePolicyManifest(item.manifest, item.filePath));
   }
 
@@ -295,6 +344,9 @@ function validateManifestCollection(repoRoot) {
   for (const item of profileItems) {
     if (item.manifest.recommendedRuntime) {
       assertCondition(runtimeNames.has(item.manifest.recommendedRuntime), `${item.filePath}: recommended runtime "${item.manifest.recommendedRuntime}" does not exist`, errors);
+    }
+    for (const name of item.manifest.runtimes || []) {
+      assertCondition(runtimeNames.has(name), `${item.filePath}: runtime "${name}" does not exist`, errors);
     }
     for (const name of [
       ...(item.manifest.defaultModules || []),

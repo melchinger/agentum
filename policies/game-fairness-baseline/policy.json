@@ -1,6 +1,4 @@
 {
   "name": "game-fairness-baseline",
-  "description": "Server-autoritative Spielregeln: kein Vertrauen in Client-Eingaben, geheime Information nur über playerView, deterministische Moves.",
-  "type": "policy",
-  "version": "1.0.0"
+  "description": "Server-autoritative Spielregeln: kein Vertrauen in Client-Eingaben, geheime Information nur über playerView, deterministische Moves."
 }

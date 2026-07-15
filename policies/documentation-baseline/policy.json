@@ -1,6 +1,4 @@
 {
   "name": "documentation-baseline",
-  "description": "Strikte Vorgaben für Code-Kommentare, API-Dokumentation und Architekturentscheidungen.",
-  "type": "policy",
-  "version": "1.0.0"
+  "description": "Strikte Vorgaben für Code-Kommentare, API-Dokumentation und Architekturentscheidungen."
 }

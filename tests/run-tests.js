@@ -53,6 +53,14 @@ function withTempDir(callback) {
   }
 }
 
+// Copies the catalog into a temp dir so a test can corrupt a manifest without
+// touching the real repository.
+function copyCatalog(sourceRoot, targetRoot) {
+  for (const dir of ["schemas", "modules", "profiles", "policies", "runtimes", "stacks"]) {
+    fs.cpSync(path.join(sourceRoot, dir), path.join(targetRoot, dir), { recursive: true });
+  }
+}
+
 function runTest(name, callback) {
   try {
     callback();
@@ -117,6 +125,54 @@ runTest("lists all supported variants", () => {
 runTest("validates manifest collections", () => {
   const errors = validateManifestCollection(repoRoot);
   assert.deepEqual(errors, []);
+});
+
+runTest("rejects manifest keys that no schema declares", () => {
+  withTempDir((tempDir) => {
+    copyCatalog(repoRoot, tempDir);
+    const target = path.join(tempDir, "modules", "storage", "sqlite", "module.json");
+    const manifest = JSON.parse(fs.readFileSync(target, "utf8"));
+    manifest.dependencies = ["rusqlite"];
+    fs.writeFileSync(target, JSON.stringify(manifest, null, 2), "utf8");
+
+    const errors = validateManifestCollection(tempDir);
+    assert.ok(
+      errors.some((entry) => entry.includes('unknown key "dependencies"')),
+      `expected an unknown-key error, got: ${JSON.stringify(errors)}`
+    );
+  });
+});
+
+runTest("rejects manifests missing a schema-required key", () => {
+  withTempDir((tempDir) => {
+    copyCatalog(repoRoot, tempDir);
+    const target = path.join(tempDir, "modules", "storage", "sqlite", "module.json");
+    const manifest = JSON.parse(fs.readFileSync(target, "utf8"));
+    delete manifest.compatibleRuntimes;
+    fs.writeFileSync(target, JSON.stringify(manifest, null, 2), "utf8");
+
+    const errors = validateManifestCollection(tempDir);
+    assert.ok(
+      errors.some((entry) => entry.includes('missing required key "compatibleRuntimes"')),
+      `expected a missing-key error, got: ${JSON.stringify(errors)}`
+    );
+  });
+});
+
+runTest("rejects profiles naming a runtime that does not exist", () => {
+  withTempDir((tempDir) => {
+    copyCatalog(repoRoot, tempDir);
+    const target = path.join(tempDir, "profiles", "fullstack-monorepo", "profile.json");
+    const manifest = JSON.parse(fs.readFileSync(target, "utf8"));
+    manifest.runtimes = ["node", "cobol"];
+    fs.writeFileSync(target, JSON.stringify(manifest, null, 2), "utf8");
+
+    const errors = validateManifestCollection(tempDir);
+    assert.ok(
+      errors.some((entry) => entry.includes('runtime "cobol" does not exist')),
+      `expected a runtime cross-reference error, got: ${JSON.stringify(errors)}`
+    );
+  });
 });
 
 runTest("lists composition catalog entries", () => {
