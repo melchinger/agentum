@@ -30,6 +30,7 @@ const { run: runCli } = require("../scripts/init-repo");
 const { validateManifestCollection } = require("../scripts/validate-manifests");
 const { mergeCargoDependencies, renderCargoDependencies } = require("../scripts/lib/cargo-dependencies");
 const { applyNpmDependencies, mergeNpmDependencies } = require("../scripts/lib/npm-dependencies");
+const { buildCatalog, catalogPath } = require("../scripts/generate-catalog");
 
 const repoRoot = path.resolve(__dirname, "..");
 const pendingAsyncTests = [];
@@ -127,6 +128,17 @@ runTest("lists all supported variants", () => {
 runTest("validates manifest collections", () => {
   const errors = validateManifestCollection(repoRoot);
   assert.deepEqual(errors, []);
+});
+
+runTest("docs/catalog.md matches the catalog", () => {
+  // Compare content, not line endings: git checks the file out with CRLF where
+  // core.autocrlf is on, while the generator always writes LF.
+  const normalize = (text) => text.replace(/\r\n/g, "\n");
+  assert.equal(
+    normalize(fs.readFileSync(catalogPath(repoRoot), "utf8")),
+    normalize(buildCatalog(repoRoot)),
+    "docs/catalog.md is stale. Run `npm run docs:catalog`."
+  );
 });
 
 runTest("rejects manifest keys that no schema declares", () => {
