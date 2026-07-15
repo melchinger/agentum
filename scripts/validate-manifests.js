@@ -138,6 +138,93 @@ function validateRule(rule, label, errors) {
   }
 }
 
+function validateCargoDependencies(dependencies, label, errors) {
+  assertCondition(isPlainObject(dependencies), `${label} must be an object`, errors);
+  if (!isPlainObject(dependencies)) {
+    return;
+  }
+  assertCondition(Object.keys(dependencies).length > 0, `${label} must not be empty`, errors);
+
+  for (const [crate, spec] of Object.entries(dependencies)) {
+    const crateLabel = `${label}.${crate}`;
+    assertCondition(/^[a-zA-Z0-9_-]+$/.test(crate), `${crateLabel}: crate name is not a valid identifier`, errors);
+
+    if (typeof spec === "string") {
+      assertCondition(isNonEmptyString(spec), `${crateLabel} must be a non-empty version requirement`, errors);
+      continue;
+    }
+
+    assertCondition(isPlainObject(spec), `${crateLabel} must be a version string or a table`, errors);
+    if (!isPlainObject(spec)) {
+      continue;
+    }
+
+    const allowedKeys = ["version", "features", "default-features", "optional"];
+    for (const key of Object.keys(spec)) {
+      assertCondition(allowedKeys.includes(key), `${crateLabel} contains unknown key "${key}"`, errors);
+    }
+    assertCondition(isNonEmptyString(spec.version), `${crateLabel}.version is required`, errors);
+    if ("features" in spec) {
+      validateStringArray(spec.features, `${crateLabel}.features`, errors);
+    }
+    for (const key of ["default-features", "optional"]) {
+      if (key in spec) {
+        assertCondition(typeof spec[key] === "boolean", `${crateLabel}.${key} must be a boolean`, errors);
+      }
+    }
+  }
+}
+
+function validateNpmDependencies(contribution, label, errors) {
+  assertCondition(isPlainObject(contribution), `${label} must be an object`, errors);
+  if (!isPlainObject(contribution)) {
+    return;
+  }
+
+  const allowedKeys = ["target", "dependencies", "devDependencies"];
+  for (const key of Object.keys(contribution)) {
+    assertCondition(allowedKeys.includes(key), `${label} contains unknown key "${key}"`, errors);
+  }
+
+  if ("target" in contribution) {
+    assertCondition(
+      typeof contribution.target === "string" && /^([a-zA-Z0-9._-]+\/)*package\.json$/.test(contribution.target),
+      `${label}.target must be a relative path ending in package.json`,
+      errors
+    );
+  }
+
+  assertCondition(
+    "dependencies" in contribution || "devDependencies" in contribution,
+    `${label} must declare dependencies or devDependencies`,
+    errors
+  );
+
+  for (const field of ["dependencies", "devDependencies"]) {
+    if (!(field in contribution)) {
+      continue;
+    }
+    const packages = contribution[field];
+    assertCondition(isPlainObject(packages), `${label}.${field} must be an object`, errors);
+    if (!isPlainObject(packages)) {
+      continue;
+    }
+    assertCondition(Object.keys(packages).length > 0, `${label}.${field} must not be empty`, errors);
+    for (const [name, range] of Object.entries(packages)) {
+      assertCondition(
+        /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/.test(name),
+        `${label}.${field}: "${name}" is not a valid package name`,
+        errors
+      );
+      assertCondition(
+        isNonEmptyString(range),
+        `${label}.${field}.${name} must be a non-empty version range`,
+        errors
+      );
+    }
+  }
+}
+
 function validateDetect(detect, label, errors) {
   assertCondition(isPlainObject(detect), `${label} must be an object`, errors);
   if (!isPlainObject(detect)) {
@@ -193,6 +280,22 @@ function validateModuleManifest(manifest, filePath) {
         pattern: field === "commands" ? /^[a-z0-9-]+: .+/ : null
       });
     }
+  }
+  if ("cargoDependencies" in manifest) {
+    validateCargoDependencies(manifest.cargoDependencies, `${filePath}: cargoDependencies`, errors);
+    assertCondition(
+      (manifest.compatibleRuntimes || []).includes("rust"),
+      `${filePath}: cargoDependencies requires the module to be compatible with the rust runtime`,
+      errors
+    );
+  }
+  if ("npmDependencies" in manifest) {
+    validateNpmDependencies(manifest.npmDependencies, `${filePath}: npmDependencies`, errors);
+    assertCondition(
+      (manifest.compatibleRuntimes || []).includes("node"),
+      `${filePath}: npmDependencies requires the module to be compatible with the node runtime`,
+      errors
+    );
   }
   if ("detect" in manifest) {
     validateDetect(manifest.detect, `${filePath}: detect`, errors);

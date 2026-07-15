@@ -11,6 +11,23 @@ const {
   slugify,
   toPythonPackage
 } = require("./template-utils");
+const { mergeCargoDependencies, renderCargoDependencies } = require("./cargo-dependencies");
+const { applyNpmDependencies, mergeNpmDependencies } = require("./npm-dependencies");
+
+// Collects the cargo dependency contributions of a resolved composition, in a stable
+// order so the generated Cargo.toml does not churn between runs.
+function collectCargoContributors(runtimeEntities, modules) {
+  return [
+    ...runtimeEntities.map((entry) => ({
+      label: `runtime:${entry.manifest.name}`,
+      cargoDependencies: entry.manifest.cargoDependencies
+    })),
+    ...modules.map((entry) => ({
+      label: `module:${entry.manifest.name}`,
+      cargoDependencies: entry.manifest.cargoDependencies
+    }))
+  ].filter((entry) => entry.cargoDependencies);
+}
 
 function loadEntity(repoRoot, relativeDir, manifestFile, label) {
   const entityDir = path.join(repoRoot, relativeDir);
@@ -240,6 +257,12 @@ function resolveComposition(repoRoot, options = {}) {
     }
   }
 
+  errors.push(...mergeCargoDependencies(collectCargoContributors(runtimeEntities, modules)).errors);
+  errors.push(...mergeNpmDependencies(modules.map((entry) => ({
+    label: `module:${entry.manifest.name}`,
+    npmDependencies: entry.manifest.npmDependencies
+  }))).errors);
+
   const ruleContext = {
     profile: profile?.manifest.name || null,
     runtimes: runtimes,
@@ -293,6 +316,7 @@ function buildVariables(options) {
     PYTHON_PACKAGE: toPythonPackage(options.projectName),
     PROFILE_NAME: options.profileName || "none",
     RUNTIME_NAME: primaryRuntimeName,
+    CARGO_DEPENDENCIES: options.cargoDependencies ? renderCargoDependencies(options.cargoDependencies) : "",
     RUNTIMES_JSON: JSON.stringify(Array.isArray(options.runtimeNames) ? options.runtimeNames : [primaryRuntimeName]),
     MODULES_JSON: JSON.stringify(options.moduleNames),
     POLICIES_JSON: JSON.stringify(options.policyNames),
@@ -409,7 +433,10 @@ function collectCompositionOperations(repoRoot, options) {
     runtimeName: runtimes[0].manifest.name,
     runtimeNames: runtimes.map((r) => r.manifest.name),
     moduleNames: composition.modules.map((entry) => entry.manifest.name),
-    policyNames: composition.policies.map((entry) => entry.manifest.name)
+    policyNames: composition.policies.map((entry) => entry.manifest.name),
+    cargoDependencies: mergeCargoDependencies(
+      collectCargoContributors(runtimes, composition.modules)
+    ).dependencies
   });
 
   const operations = [
@@ -442,6 +469,24 @@ function collectCompositionOperations(repoRoot, options) {
       content: buildCompositionMetadata(composition, variables, { projectName, packageManager })
     }
   ];
+
+  // Merge npm contributions into whichever package.json owns each target. This runs
+  // over the pending operations rather than the filesystem, so a module can extend a
+  // manifest another module is about to write in this same run.
+  const { byTarget: npmByTarget } = mergeNpmDependencies(composition.modules.map((entry) => ({
+    label: `module:${entry.manifest.name}`,
+    npmDependencies: entry.manifest.npmDependencies
+  })));
+  for (const [target, bucket] of npmByTarget.entries()) {
+    const absoluteTarget = path.join(options.targetDir, ...target.split("/"));
+    const operation = operations.find((entry) => entry.type === "write" && entry.target === absoluteTarget);
+    if (!operation) {
+      throw new Error(
+        `A selected module contributes npm dependencies to \`${target}\`, but no runtime or module provides that file.`
+      );
+    }
+    operation.content = applyNpmDependencies(operation.content, bucket);
+  }
 
   const envLines = composition.modules.flatMap((entry) =>
     (entry.manifest.env || []).map((line) => renderString(line, variables))

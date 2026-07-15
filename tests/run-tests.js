@@ -28,6 +28,8 @@ const {
 } = require("../scripts/lib/retrofit-engine");
 const { run: runCli } = require("../scripts/init-repo");
 const { validateManifestCollection } = require("../scripts/validate-manifests");
+const { mergeCargoDependencies, renderCargoDependencies } = require("../scripts/lib/cargo-dependencies");
+const { applyNpmDependencies, mergeNpmDependencies } = require("../scripts/lib/npm-dependencies");
 
 const repoRoot = path.resolve(__dirname, "..");
 const pendingAsyncTests = [];
@@ -173,6 +175,82 @@ runTest("rejects profiles naming a runtime that does not exist", () => {
       `expected a runtime cross-reference error, got: ${JSON.stringify(errors)}`
     );
   });
+});
+
+runTest("merges cargo dependencies from runtime and modules", () => {
+  const { dependencies, errors } = mergeCargoDependencies([
+    { label: "module:axum", cargoDependencies: { axum: "0.8", serde: { version: "1", features: ["derive"] } } },
+    { label: "module:subscription-center-rust", cargoDependencies: { axum: "0.8", serde: { version: "1", features: ["rc"] } } }
+  ]);
+
+  assert.deepEqual(errors, []);
+  // The same crate requested twice collapses into one entry with unioned features.
+  assert.deepEqual(dependencies.get("serde").features, ["derive", "rc"]);
+  assert.equal(renderCargoDependencies(dependencies).split("\n").length, 2);
+});
+
+runTest("reports conflicting cargo version requirements", () => {
+  const { errors } = mergeCargoDependencies([
+    { label: "module:axum", cargoDependencies: { axum: "0.8" } },
+    { label: "module:legacy", cargoDependencies: { axum: "0.7" } }
+  ]);
+
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0].includes("axum"));
+  assert.ok(errors[0].includes("module:legacy"));
+});
+
+runTest("renders cargo dependencies as valid toml", () => {
+  const { dependencies } = mergeCargoDependencies([
+    {
+      label: "module:axum",
+      cargoDependencies: {
+        anyhow: "1",
+        sqlx: { version: "0.8", "default-features": false, features: ["postgres"] }
+      }
+    }
+  ]);
+
+  assert.equal(
+    renderCargoDependencies(dependencies),
+    'anyhow = "1"\nsqlx = { version = "0.8", default-features = false, features = ["postgres"] }'
+  );
+});
+
+runTest("merges npm dependencies into the package.json a module targets", () => {
+  const { byTarget, errors } = mergeNpmDependencies([
+    { label: "module:a", npmDependencies: { dependencies: { express: "^4.19.2" } } },
+    {
+      label: "module:b",
+      npmDependencies: { target: "apps/web/package.json", dependencies: { jose: "^5.9.6" } }
+    }
+  ]);
+
+  assert.deepEqual(errors, []);
+  // Contributions stay in their own manifest instead of piling up at the root.
+  assert.deepEqual(byTarget.get("package.json"), { dependencies: { express: "^4.19.2" } });
+  assert.deepEqual(byTarget.get("apps/web/package.json"), { dependencies: { jose: "^5.9.6" } });
+});
+
+runTest("reports conflicting npm version ranges", () => {
+  const { errors } = mergeNpmDependencies([
+    { label: "module:a", npmDependencies: { dependencies: { "openid-client": "^5.7.0" } } },
+    { label: "module:b", npmDependencies: { dependencies: { "openid-client": "^6.0.0" } } }
+  ]);
+
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0].includes("openid-client"));
+});
+
+runTest("npm merge preserves the fields the target already declares", () => {
+  const merged = applyNpmDependencies(
+    JSON.stringify({ name: "app", scripts: { test: "node --test" }, dependencies: { zod: "^3.0.0" } }),
+    { dependencies: { express: "^4.19.2" } }
+  );
+  const manifest = JSON.parse(merged);
+
+  assert.deepEqual(manifest.scripts, { test: "node --test" });
+  assert.deepEqual(Object.keys(manifest.dependencies), ["express", "zod"]);
 });
 
 runTest("lists composition catalog entries", () => {
