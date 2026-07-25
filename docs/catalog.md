@@ -26,6 +26,7 @@ node scripts/init-repo.js explain-stack --profile <name>
 | `realtime-session` | `node` | `socketio-session`, `socketio-react` | Two-party, real-time, role-asymmetric session app (e.g. card coaching) on plain Socket.IO with a server-authoritative state machine. |
 | `rust-node-monorepo` | `rust`, `node` | `axum`, `sqlx-migrate`, `sveltekit`, `postgres` | Monorepo with a Rust/Axum backend and a Node frontend workspace, sharing one PostgreSQL database. |
 | `saas-web-app` | `python` | `fastapi`, `postgres`, `alembic` | Multi-user web application with production-oriented defaults. |
+| `static-content-site` | `node` | `markdown-static` | Static, Markdown-driven website. Content lives in content/*.md and builds to flat HTML; a selectable strategy handles contact forms and mail. |
 
 ## Runtimes
 
@@ -50,8 +51,12 @@ node scripts/init-repo.js explain-stack --profile <name>
 | `tauri` | desktop-shell | `rust` | — | — | Cross-platform desktop shell with Rust core and web UI. |
 | `playwright-pdf` | document | `python`, `node` | — | — | HTML-to-PDF pipeline using browser rendering. |
 | `chrome-mv3` | extension | `node` | — | — | Chrome Manifest V3 browser extension scaffold with Vite + @crxjs/vite-plugin. |
+| `headless-wp-forms` | forms | `node` | `markdown-static` | `phpmailer-endpoint`, `static-mail-gateway` | Contact form backed by a headless WordPress running Fluent Forms, exposed through the wp-fluent-forms-proxy REST endpoint (the melchinger/headless-wp-forms stack). The static form submits JSON to the proxy; WordPress handles delivery, spam filtering and entry storage. Use when that WordPress forms base already exists or non-technical staff manage forms there. |
+| `phpmailer-endpoint` | forms | `node` | `markdown-static` | `static-mail-gateway`, `headless-wp-forms` | Self-hosted contact form. The static form posts to a small PHP endpoint (mail/send.php) that sends mail over SMTP with PHPMailer. No third-party form service; requires a PHP-capable host. SMTP and recipient live in mail/config.inc.php (git-ignored). |
+| `static-mail-gateway` | forms | `node` | `markdown-static` | `phpmailer-endpoint`, `headless-wp-forms` | Contact form for static-only hosting. The form posts JSON to a central mail-gateway service (e.g. a shared /mail/send endpoint that accepts { to, subject, body, fromName } and returns { success }). No backend code and no PHP in this repo; set the gateway endpoint and recipient in content/kontakt.md. Mirrors the cardcoaching/landing lead flow. |
 | `boardgame-io-react` | frontend | `node` | `boardgame-io-core` | — | boardgame.io React-Client: Board-Komponente, über SocketIO/Local-Multiplayer an das Spiel gebunden. |
 | `htmx` | frontend | `python`, `node` | — | — | Server-rendered HTML with progressive enhancement boundaries. |
+| `markdown-static` | frontend | `node` | — | `nextjs`, `react`, `svelte`, `sveltekit`, `sveltekit-static`, `htmx`, `socketio-react`, `boardgame-io-react` | Zero-framework static site generator. Content lives in content/*.md (front matter + Markdown), templates are plain JS functions, and `node build.js` renders static HTML into dist/. Editable by non-developers, deployable as flat files. |
 | `nextjs` | frontend | `node` | — | `sveltekit`, `sveltekit-static` | Next.js 15 App Router with TypeScript and React |
 | `react` | frontend | `node`, `rust` | — | — | React SPA frontend with a minimal Vite-style structure. |
 | `socketio-react` | frontend | `node` | `socketio-session` | — | React-Client für die Realtime-Session: socket.io-client-Verbindung, Live-State-Rendering, rollengesteuerte Aktionen. |

@@ -1,0 +1,95 @@
+// Contact form -> central mail-gateway service (JSON). The form's data-action
+// is the gateway endpoint (e.g. https://mail.example.com/mail/send) and data-to
+// is the recipient. We build the message body from the fields client-side and
+// POST JSON { to, subject, body, fromName }; the gateway answers { success }.
+// Mirrors the cardcoaching/landing lead flow.
+
+(function () {
+  var form = document.getElementById("contactForm");
+  if (!form) return;
+
+  var status = document.getElementById("formStatus");
+  var thanks = document.getElementById("contactThanks");
+  var btn = form.querySelector('button[type="submit"]');
+  var sending = form.dataset.sending || "Sending…";
+  var networkError = form.dataset.networkError || "Sending failed — please try again later.";
+  var origLabel = btn ? btn.textContent : "";
+
+  function setLoading(on) {
+    if (!btn) return;
+    btn.disabled = on;
+    btn.textContent = on ? sending : origLabel;
+  }
+
+  function showError(msg) {
+    if (status) {
+      status.hidden = false;
+      status.textContent = msg;
+      status.classList.add("is-error");
+    }
+    setLoading(false);
+  }
+
+  function succeed() {
+    form.hidden = true;
+    if (thanks) {
+      thanks.hidden = false;
+      thanks.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    if (status) {
+      status.hidden = true;
+      status.textContent = "";
+      status.classList.remove("is-error");
+    }
+
+    var data = new FormData(form);
+
+    // Honeypot: a filled hidden field means a bot. Pretend success, send nothing.
+    if ((data.get("website") || "").toString().trim() !== "") {
+      succeed();
+      return;
+    }
+
+    setLoading(true);
+
+    var name = (data.get("name") || "").toString().trim();
+    var email = (data.get("email") || "").toString().trim();
+    var subject = (data.get("subject") || "").toString().trim();
+    var message = (data.get("message") || "").toString().trim();
+
+    var lines = ["Name: " + name, "Email: " + email];
+    if (message) lines.push("", message);
+
+    fetch(form.dataset.action, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: form.dataset.to,
+        subject: subject || "Website contact",
+        body: lines.join("\n"),
+        fromName: form.dataset.fromName || "Website",
+      }),
+    })
+      .then(function (res) {
+        return res
+          .json()
+          .catch(function () {
+            return null;
+          })
+          .then(function (payload) {
+            if (res.ok && payload && payload.success) {
+              succeed();
+              return;
+            }
+            showError((payload && (payload.error || payload.message)) || networkError);
+          });
+      })
+      .catch(function () {
+        showError(networkError);
+      });
+  });
+})();

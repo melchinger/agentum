@@ -1,0 +1,29 @@
+{
+  "name": "static-content-site",
+  "description": "Static, Markdown-driven website. Content lives in content/*.md and builds to flat HTML; a selectable strategy handles contact forms and mail.",
+  "recommendedRuntime": "node",
+  "defaultModules": ["markdown-static"],
+  "recommendedModules": ["static-mail-gateway", "phpmailer-endpoint", "headless-wp-forms"],
+  "requiredPolicies": ["security-baseline", "ci", "privacy-baseline"],
+  "questions": [
+    {
+      "id": "mail_strategy",
+      "prompt": "How should contact forms and mail be handled? Pick one: static-mail-gateway (posts to an external form service, works on static-only hosts), phpmailer-endpoint (self-hosted PHP + SMTP, needs a PHP host), or headless-wp-forms (submits to a WordPress Contact Form 7). Pick none to ship a mailto: link only.",
+      "suggestModules": ["static-mail-gateway", "phpmailer-endpoint", "headless-wp-forms"]
+    }
+  ],
+  "rules": [
+    {
+      "level": "info",
+      "when": {},
+      "message": "Pages are content/*.md (front matter + Markdown), templates are plain JS in templates/, and `node build.js` renders dist/. Edit Markdown, not the templates."
+    },
+    {
+      "level": "warning",
+      "when": {
+        "modulesAny": ["phpmailer-endpoint"]
+      },
+      "message": "phpmailer-endpoint needs a PHP-capable host for /mail/. On static-only hosting (CDN, GitHub Pages) use static-mail-gateway or headless-wp-forms instead."
+    }
+  ]
+}

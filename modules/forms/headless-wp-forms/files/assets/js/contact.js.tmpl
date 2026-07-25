@@ -1,0 +1,85 @@
+// Contact form -> headless WordPress (Fluent Forms via wp-fluent-forms-proxy).
+// The form's data-action is the proxy submit endpoint:
+//   {WP_URL}/wp-json/wp-fluent-forms-proxy/v1/forms/{FORM_ID}/submit
+// We POST the fields as JSON. Cross-origin submits are gated by the proxy's
+// ALLOWED_ORIGINS, so NO API key is sent from the browser (never embed the
+// PROXY_API_KEY in client code — see docs/headless-wp-forms.md). Success is 2xx.
+
+(function () {
+  var form = document.getElementById("contactForm");
+  if (!form) return;
+
+  var status = document.getElementById("formStatus");
+  var thanks = document.getElementById("contactThanks");
+  var btn = form.querySelector('button[type="submit"]');
+  var sending = form.dataset.sending || "Sending…";
+  var networkError = form.dataset.networkError || "Sending failed — please try again later.";
+  var origLabel = btn ? btn.textContent : "";
+
+  function setLoading(on) {
+    if (!btn) return;
+    btn.disabled = on;
+    btn.textContent = on ? sending : origLabel;
+  }
+
+  function showError(msg) {
+    if (status) {
+      status.hidden = false;
+      status.textContent = msg;
+      status.classList.add("is-error");
+    }
+    setLoading(false);
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    if (status) {
+      status.hidden = true;
+      status.textContent = "";
+      status.classList.remove("is-error");
+    }
+
+    var data = new FormData(form);
+
+    // Honeypot: only bots fill this. Pretend success, send nothing.
+    if ((data.get("website") || "").toString().trim() !== "") {
+      form.hidden = true;
+      if (thanks) thanks.hidden = false;
+      return;
+    }
+
+    setLoading(true);
+
+    var payload = {};
+    data.forEach(function (value, key) {
+      if (key !== "website") payload[key] = value;
+    });
+
+    fetch(form.dataset.action, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(function (res) {
+        return res
+          .json()
+          .catch(function () {
+            return null;
+          })
+          .then(function (body) {
+            if (res.ok) {
+              form.hidden = true;
+              if (thanks) {
+                thanks.hidden = false;
+                thanks.scrollIntoView({ behavior: "smooth", block: "center" });
+              }
+              return;
+            }
+            showError((body && (body.message || body.error)) || networkError);
+          });
+      })
+      .catch(function () {
+        showError(networkError);
+      });
+  });
+})();
