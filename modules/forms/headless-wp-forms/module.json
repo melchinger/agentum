@@ -1,0 +1,14 @@
+{
+  "name": "headless-wp-forms",
+  "category": "forms",
+  "description": "Contact form backed by a headless WordPress running Fluent Forms, exposed through the wp-fluent-forms-proxy REST endpoint (the melchinger/headless-wp-forms stack). The static form submits JSON to the proxy; WordPress handles delivery, spam filtering and entry storage. Use when that WordPress forms base already exists or non-technical staff manage forms there.",
+  "compatibleRuntimes": ["node"],
+  "conflictsWith": ["phpmailer-endpoint", "static-mail-gateway"],
+  "requiresModules": ["markdown-static"],
+  "directories": ["content", "assets/js", "docs"],
+  "requiredFiles": [
+    "content/kontakt.md",
+    "assets/js/contact.js",
+    "docs/headless-wp-forms.md"
+  ]
+}

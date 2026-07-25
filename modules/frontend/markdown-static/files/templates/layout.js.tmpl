@@ -1,0 +1,79 @@
+// Page shell: <head>, header/nav, footer. Holds no content of its own —
+// everything visible comes from content/*.md. CommonJS so `node build.js`
+// can require() it without any build step.
+
+const esc = (value = "") =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+
+const href = (slug = "") => (slug === "" ? "/" : `/${String(slug).replace(/\/$/, "")}/`);
+
+function navHtml(site, activeSlug) {
+  const nav = (site && site.nav) || [];
+  return nav
+    .map((item) => {
+      const current =
+        item.slug === ""
+          ? activeSlug === ""
+          : activeSlug === item.slug || activeSlug.startsWith(item.slug + "/");
+      return `<li><a href="${href(item.slug)}"${current ? ' aria-current="page"' : ""}>${esc(item.label)}</a></li>`;
+    })
+    .join("\n        ");
+}
+
+module.exports = function layout(site, { title, description, slug = "", body }) {
+  const meta = (site && site.meta) || {};
+  const contact = (site && site.contact) || {};
+  const footer = (site && site.footer) || {};
+  const base = meta.base_url ? (meta.base_url.endsWith("/") ? meta.base_url : meta.base_url + "/") : "/";
+  const canonical = base + (slug ? slug.replace(/\/$/, "") + "/" : "");
+  const fullTitle = slug === "" ? title || meta.site_name : `${title} | ${meta.site_name}`;
+
+  return `<!DOCTYPE html>
+<html lang="${esc(meta.lang || "en")}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${esc(fullTitle)}</title>
+<meta name="description" content="${esc(description)}">
+<link rel="canonical" href="${esc(canonical)}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="${esc(meta.site_name || "")}">
+<meta property="og:title" content="${esc(fullTitle)}">
+<meta property="og:description" content="${esc(description)}">
+<meta property="og:url" content="${esc(canonical)}">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/">${esc(meta.site_name || "")}</a>
+    <nav class="main-nav" aria-label="Main navigation">
+      <ul>
+        ${navHtml(site, slug)}
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main>
+${body}
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <p>${esc(footer.text || "")}</p>
+    <p class="footer-contact">
+      ${contact.email ? `<a href="mailto:${esc(contact.email)}">${esc(contact.email)}</a>` : ""}
+    </p>
+    <p class="footer-legal">&copy; ${esc(meta.site_name || "")}</p>
+  </div>
+</footer>
+
+</body>
+</html>`;
+};

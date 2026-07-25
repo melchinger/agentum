@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+// Copy this file to config.inc.php and fill in real values.
+// config.inc.php is git-ignored — never commit SMTP credentials.
+
+return [
+    // Where contact-form messages are delivered.
+    'recipient' => 'CHANGE_ME@example.com',
+
+    // Used in the mail subject and default From name.
+    'site_title' => '{{PROJECT_NAME}}',
+
+    // Leave smtp.host empty to use the host's PHP mail() (works with no setup,
+    // From: no-reply@<domain>). Set it for authenticated SMTP (better delivery).
+    'smtp' => [
+        'host' => '',                // '' = PHP mail() fallback
+        'port' => 587,               // 587 = STARTTLS, 465 = SSL
+        'encryption' => 'tls',       // 'tls' | 'ssl' | 'none'
+        'username' => '',
+        'password' => '',
+        'from_email' => 'no-reply@example.com',
+        'from_name' => '{{PROJECT_NAME}}',
+        'timeout' => 15,
+    ],
+];

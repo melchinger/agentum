@@ -1,0 +1,44 @@
+# Headless WordPress forms (Fluent Forms + proxy)
+
+The static site owns the markup; a separate **headless WordPress** handles form delivery.
+The backend is the `melchinger/headless-wp-forms` stack: WordPress + Fluent Forms +
+FluentSMTP + WPGraphQL + the `wp-fluent-forms-proxy` and `wp-graphql-fluent-forms` plugins.
+Nothing WordPress-related ships in this repo — this is the integration checklist.
+
+## Backend (headless-wp-forms repo)
+
+1. Bring up the stack (`docker compose up -d`) and provision it
+   (`provision.sh`). Provisioning creates the forms from `forms/*.json` and prints the
+   allowed form IDs.
+2. Set `PROXY_API_KEY` and `ALLOWED_ORIGINS` in the backend `.env`. `ALLOWED_ORIGINS` must
+   include this site's origin so the browser is allowed to submit cross-origin.
+3. Define your contact form as a Fluent Form JSON (`forms/contact.json`), note its field
+   keys and its form ID.
+
+## Endpoint
+
+```
+POST {WP_URL}/wp-json/wp-fluent-forms-proxy/v1/forms/{FORM_ID}/submit
+Content-Type: application/json
+Body: { "first_name": "…", "last_name": "…", "email": "…", "message": "…", "gdpr_consent": "on" }
+```
+
+Success is HTTP 2xx. `assets/js/contact.js` posts the fields as JSON and treats 2xx as sent.
+
+## The API key must never reach the browser
+
+The proxy authenticates server-to-server calls with `X-API-Key: <PROXY_API_KEY>`. A static
+site has no server, so **do not embed the key in `content/kontakt.md` or `contact.js`** — it
+would be public. Two safe options:
+
+- **CORS-gated public submit (default here):** rely on the proxy's `ALLOWED_ORIGINS` and
+  submit from the browser without the key. Confirm your proxy build accepts keyless submits
+  from allowed origins.
+- **Server-side forwarder:** if the proxy always requires the key, put a tiny same-origin
+  shim (PHP endpoint or edge function) that injects `X-API-Key` and forwards to the proxy,
+  and point `data-action` at that shim.
+
+## Configure
+
+Set the WordPress host and `FORM_ID` in the form's `data-action` in `content/kontakt.md`,
+and align the input `name` attributes with your Fluent Form field keys.

@@ -364,6 +364,52 @@ runTest("routes npm dependencies to the workspace that needs them", () => {
   });
 });
 
+runTest("composes a static content site with a chosen mail strategy", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "site");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "My Site",
+      profile: "static-content-site",
+      modules: ["phpmailer-endpoint"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // The generator, its content and templates land at the repo root.
+    assert.equal(fs.existsSync(path.join(targetDir, "build.js")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "content", "site.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "content", "index.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "templates", "layout.js")), true);
+    // The forms module owns the contact page and its PHP backend.
+    assert.equal(fs.existsSync(path.join(targetDir, "content", "kontakt.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "mail", "send.php")), true);
+    // Secrets are protected without a real config file shipping.
+    assert.equal(fs.existsSync(path.join(targetDir, "mail", "config.inc.php")), false);
+    assert.ok(
+      fs.readFileSync(path.join(targetDir, "mail", ".gitignore"), "utf8").includes("config.inc.php")
+    );
+
+    // The runtime owns package.json; the module contributes its deps by merge.
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.equal(pkg.dependencies["gray-matter"], "^4.0.3");
+    assert.equal(pkg.dependencies.marked, "^4.3.0");
+  });
+});
+
+runTest("rejects picking more than one mail strategy", () => {
+  const composition = resolveComposition(repoRoot, {
+    profile: "static-content-site",
+    modules: ["phpmailer-endpoint", "headless-wp-forms"]
+  });
+
+  assert.ok(
+    composition.errors.some((entry) => entry.includes("conflicts with")),
+    JSON.stringify(composition.errors)
+  );
+});
+
 runTest("rejects npm dependencies aimed at a manifest nobody provides", () => {
   withTempDir((tempDir) => {
     copyCatalog(repoRoot, tempDir);

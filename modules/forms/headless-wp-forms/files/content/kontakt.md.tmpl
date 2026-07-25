@@ -1,0 +1,54 @@
+---
+slug: kontakt
+title: Contact
+eyebrow: Contact
+hero_title: Get in touch
+hero_sub: Send a message and we'll get back to you.
+description: Contact form.
+---
+
+<!--
+  Point data-action at your wp-fluent-forms-proxy submit endpoint:
+    https://WP-HOST.CHANGE-ME/wp-json/wp-fluent-forms-proxy/v1/forms/FORM_ID/submit
+  The input `name` attributes MUST match the field keys of your Fluent Form
+  (see forms/*.json in the headless-wp-forms repo, and docs/headless-wp-forms.md).
+  Do NOT put PROXY_API_KEY here — the browser must not carry it. Cross-origin
+  submits are allowed via the proxy's ALLOWED_ORIGINS.
+-->
+<form id="contactForm" class="contact-form"
+      data-action="https://WP-HOST.CHANGE-ME/wp-json/wp-fluent-forms-proxy/v1/forms/FORM_ID/submit"
+      data-sending="Sending…"
+      data-network-error="Sending failed — please try again later.">
+  <div class="field">
+    <label for="cf-first">First name</label>
+    <input id="cf-first" name="first_name" type="text" required maxlength="120" autocomplete="given-name">
+  </div>
+  <div class="field">
+    <label for="cf-last">Last name</label>
+    <input id="cf-last" name="last_name" type="text" required maxlength="120" autocomplete="family-name">
+  </div>
+  <div class="field">
+    <label for="cf-email">Email</label>
+    <input id="cf-email" name="email" type="email" required maxlength="160" autocomplete="email">
+  </div>
+  <div class="field">
+    <label for="cf-message">Message</label>
+    <textarea id="cf-message" name="message" required maxlength="5000"></textarea>
+  </div>
+  <div class="field field--check">
+    <input id="cf-gdpr" name="gdpr_consent" type="checkbox" required value="on">
+    <label for="cf-gdpr">I agree to the processing of my data.</label>
+  </div>
+  <div class="hp" aria-hidden="true">
+    <label>Leave this field empty<input name="website" type="text" tabindex="-1" autocomplete="off"></label>
+  </div>
+  <p id="formStatus" class="form-status" role="alert" hidden></p>
+  <button type="submit" class="btn">Send message</button>
+  <p class="form-hint">Submitting sends your message to our WordPress forms service for delivery.</p>
+</form>
+
+<div id="contactThanks" class="form-thanks" hidden>
+  <strong>Thank you!</strong> Your message has been sent. We'll be in touch soon.
+</div>
+
+<script src="/js/contact.js" defer></script>

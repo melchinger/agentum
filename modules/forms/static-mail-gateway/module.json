@@ -1,0 +1,13 @@
+{
+  "name": "static-mail-gateway",
+  "category": "forms",
+  "description": "Contact form for static-only hosting. The form posts JSON to a central mail-gateway service (e.g. a shared /mail/send endpoint that accepts { to, subject, body, fromName } and returns { success }). No backend code and no PHP in this repo; set the gateway endpoint and recipient in content/kontakt.md. Mirrors the cardcoaching/landing lead flow.",
+  "compatibleRuntimes": ["node"],
+  "conflictsWith": ["phpmailer-endpoint", "headless-wp-forms"],
+  "requiresModules": ["markdown-static"],
+  "directories": ["content", "assets/js"],
+  "requiredFiles": [
+    "content/kontakt.md",
+    "assets/js/contact.js"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "phpmailer-endpoint",
+  "category": "forms",
+  "description": "Self-hosted contact form. The static form posts to a small PHP endpoint (mail/send.php) that sends mail over SMTP with PHPMailer. No third-party form service; requires a PHP-capable host. SMTP and recipient live in mail/config.inc.php (git-ignored).",
+  "compatibleRuntimes": ["node"],
+  "conflictsWith": ["static-mail-gateway", "headless-wp-forms"],
+  "requiresModules": ["markdown-static"],
+  "directories": ["content", "assets/js", "mail"],
+  "requiredFiles": [
+    "content/kontakt.md",
+    "assets/js/contact.js",
+    "mail/send.php",
+    "mail/config.sample.inc.php",
+    "mail/composer.json",
+    "mail/.gitignore"
+  ]
+}
