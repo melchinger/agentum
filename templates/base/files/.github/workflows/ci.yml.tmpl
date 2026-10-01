@@ -9,7 +9,8 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+{{CI_NODE_SETUP}}
       - name: Setup environment
         run: {{CI_SETUP_COMMAND}}
       - name: Run checks

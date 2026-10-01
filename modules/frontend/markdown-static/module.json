@@ -1,0 +1,42 @@
+{
+  "name": "markdown-static",
+  "category": "frontend",
+  "description": "Zero-framework static site generator. Content lives in content/*.md (front matter + Markdown), templates are plain JS functions, and `node build.js` renders static HTML into dist/. Editable by non-developers, deployable as flat files.",
+  "compatibleRuntimes": ["node"],
+  "conflictsWith": [
+    "nextjs",
+    "react",
+    "svelte",
+    "sveltekit",
+    "sveltekit-static",
+    "htmx",
+    "socketio-react",
+    "boardgame-io-react"
+  ],
+  "npmDependencies": {
+    "dependencies": {
+      "gray-matter": "^4.0.3",
+      "marked": "^4.3.0"
+    }
+  },
+  "directories": [
+    "content",
+    "templates",
+    "assets"
+  ],
+  "requiredFiles": [
+    "build.js",
+    "content/site.md",
+    "content/index.md",
+    "templates/layout.js",
+    "templates/page.js"
+  ],
+  "commands": [
+    "build: node build.js",
+    "dev: node --watch build.js"
+  ],
+  "detect": {
+    "files": ["build.js"],
+    "packageIndicators": ["gray-matter", "marked"]
+  }
+}

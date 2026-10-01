@@ -1,0 +1,39 @@
+// Generic page template: optional hero (from front matter) followed by the
+// rendered Markdown body. Raw HTML in the Markdown body is passed through, so
+// content pages can embed things like a contact form without touching this file.
+
+const esc = (value = "") =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+
+const raw = (value = "") => String(value);
+
+function heroHtml(p) {
+  if (!p.hero_title && !p.title) return "";
+  return `<section class="hero">
+  <div class="container">
+    ${p.eyebrow ? `<span class="eyebrow">${esc(p.eyebrow)}</span>` : ""}
+    <h1>${raw(p.hero_title || p.title)}</h1>
+    ${p.hero_sub ? `<p class="lede">${raw(p.hero_sub)}</p>` : ""}
+  </div>
+</section>`;
+}
+
+module.exports = function page(site, p) {
+  const parts = [heroHtml(p)];
+
+  if (p.body_html && p.body_html.trim()) {
+    parts.push(`<section class="section">
+  <div class="container">
+    <div class="prose">
+${p.body_html}
+    </div>
+  </div>
+</section>`);
+  }
+
+  return parts.filter(Boolean).join("\n\n");
+};

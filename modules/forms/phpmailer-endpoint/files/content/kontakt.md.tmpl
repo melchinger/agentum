@@ -1,0 +1,45 @@
+---
+slug: kontakt
+title: Contact
+eyebrow: Contact
+hero_title: Get in touch
+hero_sub: Send a message and we'll get back to you.
+description: Contact form.
+---
+
+<form id="contactForm" class="contact-form" action="/mail/send.php" method="post"
+      data-sending="Sending…"
+      data-network-error="Connection error. Please try again later.">
+  <div class="field">
+    <label for="cf-name">Name</label>
+    <input id="cf-name" name="name" type="text" required maxlength="120" autocomplete="name">
+  </div>
+  <div class="field">
+    <label for="cf-email">Email</label>
+    <input id="cf-email" name="email" type="email" required maxlength="160" autocomplete="email">
+  </div>
+  <div class="field">
+    <label for="cf-subject">Subject</label>
+    <input id="cf-subject" name="subject" type="text" maxlength="160">
+  </div>
+  <div class="field">
+    <label for="cf-message">Message</label>
+    <textarea id="cf-message" name="message" required maxlength="5000"></textarea>
+  </div>
+  <div class="field field--check">
+    <input id="cf-privacy" name="privacy" type="checkbox" required value="1">
+    <label for="cf-privacy">I have read the privacy notice.</label>
+  </div>
+  <div class="hp" aria-hidden="true">
+    <label>Leave this field empty<input name="website" type="text" tabindex="-1" autocomplete="off"></label>
+  </div>
+  <p id="formStatus" class="form-status" role="alert" hidden></p>
+  <button type="submit" class="btn">Send message</button>
+  <p class="form-hint">Your details are treated confidentially and not shared with third parties.</p>
+</form>
+
+<div id="contactThanks" class="form-thanks" hidden>
+  <strong>Thank you!</strong> Your message has arrived. We'll be in touch soon.
+</div>
+
+<script src="/js/contact.js" defer></script>

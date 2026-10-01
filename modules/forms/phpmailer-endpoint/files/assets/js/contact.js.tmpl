@@ -1,0 +1,65 @@
+// Contact form -> PHP endpoint (mail/send.php). Progressive enhancement: the
+// form works as a normal POST without JS; this just does it over fetch and
+// swaps in a thank-you message. The endpoint answers JSON { ok, message }.
+
+(function () {
+  var form = document.getElementById("contactForm");
+  if (!form) return;
+
+  var status = document.getElementById("formStatus");
+  var thanks = document.getElementById("contactThanks");
+  var btn = form.querySelector('button[type="submit"]');
+  var sending = form.dataset.sending || "Sending…";
+  var networkError = form.dataset.networkError || "Connection error. Please try again later.";
+  var origLabel = btn ? btn.textContent : "";
+
+  function setLoading(on) {
+    if (!btn) return;
+    btn.disabled = on;
+    btn.textContent = on ? sending : origLabel;
+  }
+
+  function showError(msg) {
+    if (status) {
+      status.hidden = false;
+      status.textContent = msg;
+      status.classList.add("is-error");
+    }
+    setLoading(false);
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    if (status) {
+      status.hidden = true;
+      status.textContent = "";
+      status.classList.remove("is-error");
+    }
+    setLoading(true);
+
+    fetch(form.action, {
+      method: "POST",
+      body: new FormData(form),
+      headers: { Accept: "application/json" },
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          return { ok: false, message: "Unexpected server response." };
+        });
+      })
+      .then(function (data) {
+        if (data.ok) {
+          form.hidden = true;
+          if (thanks) {
+            thanks.hidden = false;
+            thanks.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          return;
+        }
+        showError(data.message || networkError);
+      })
+      .catch(function () {
+        showError(networkError);
+      });
+  });
+})();

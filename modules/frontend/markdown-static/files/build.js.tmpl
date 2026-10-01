@@ -1,0 +1,101 @@
+// Static site generator.
+//
+// Reads every content/*.md file (YAML front matter + Markdown body), renders it
+// through the plain-JS templates in templates/, and writes static HTML into dist/.
+// content/site.md holds site-wide settings (nav, footer, contact) and is not a page.
+// Everything in assets/ is copied verbatim into dist/.
+//
+// Usage:
+//   node build.js          build once
+//   node --watch build.js  rebuild on change (Node 18.11+)
+//
+// This file is scaffolding. Editors change content/*.md and assets/, not this script.
+
+const fs = require("node:fs");
+const path = require("node:path");
+const matter = require("gray-matter");
+const { marked } = require("marked");
+
+const layout = require("./templates/layout.js");
+const page = require("./templates/page.js");
+
+const ROOT = __dirname;
+const CONTENT = path.join(ROOT, "content");
+const ASSETS = path.join(ROOT, "assets");
+const DIST = path.join(ROOT, "dist");
+
+marked.setOptions({ gfm: true, breaks: false });
+
+function loadMarkdown(file) {
+  const parsed = matter(fs.readFileSync(file, "utf8"));
+  const body = parsed.content.trim();
+  return {
+    ...parsed.data,
+    body_md: body,
+    body_html: marked.parse(body),
+  };
+}
+
+function* walk(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) yield* walk(full);
+    else if (entry.name.endsWith(".md")) yield full;
+  }
+}
+
+function copyDir(src, dest) {
+  if (!fs.existsSync(src)) return;
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, entry.name);
+    const d = path.join(dest, entry.name);
+    if (entry.isDirectory()) copyDir(s, d);
+    else fs.copyFileSync(s, d);
+  }
+}
+
+function cleanDist() {
+  // Empty dist/ without deleting the directory itself, so a running preview
+  // server that holds it as its working directory does not break the build.
+  fs.mkdirSync(DIST, { recursive: true });
+  for (const entry of fs.readdirSync(DIST)) {
+    fs.rmSync(path.join(DIST, entry), {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 200,
+    });
+  }
+}
+
+function build() {
+  const site = loadMarkdown(path.join(CONTENT, "site.md"));
+  cleanDist();
+
+  let count = 0;
+  for (const file of walk(CONTENT)) {
+    if (path.basename(file) === "site.md") continue;
+
+    const p = loadMarkdown(file);
+    const slug = String(p.slug || "").replace(/^\//, "").replace(/\/$/, "");
+
+    const html = layout(site, {
+      title: p.title,
+      description: p.description || (site.meta && site.meta.description) || "",
+      slug,
+      body: page(site, p),
+    });
+
+    const outDir = slug === "" ? DIST : path.join(DIST, slug);
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(path.join(outDir, "index.html"), html);
+    count += 1;
+    console.log(`OK  /${slug}`);
+  }
+
+  copyDir(ASSETS, DIST);
+  console.log(`\n${count} page(s) built -> dist/`);
+}
+
+build();

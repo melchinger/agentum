@@ -1,0 +1,166 @@
+<?php
+declare(strict_types=1);
+
+// Contact form endpoint. The static site posts here (see assets/js/contact.js).
+// Returns JSON { ok: bool, message: string }.
+//
+// Delivery:
+//   - With mail/config.inc.php whose smtp.host is set -> authenticated SMTP via
+//     PHPMailer (best deliverability; SPF/DKIM match the sending mailbox).
+//   - Otherwise -> PHP mail() fallback (From: no-reply@<host>). Works with no setup.
+//
+// Recipient and site title come from config.inc.php (git-ignored). PHPMailer is
+// installed with `composer install` in this directory.
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\PHPMailer;
+
+header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+
+function respond(bool $ok, string $message, int $status = 200): void
+{
+    http_response_code($status);
+    echo json_encode(['ok' => $ok, 'message' => $message], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function smtpSecureMode(string $raw): string
+{
+    return match (strtolower(trim($raw))) {
+        'ssl', 'smtps' => PHPMailer::ENCRYPTION_SMTPS,
+        'none', 'off', 'false', '0' => '',
+        default => PHPMailer::ENCRYPTION_STARTTLS,
+    };
+}
+
+$configFile = __DIR__ . '/config.inc.php';
+if (!is_file($configFile)) {
+    respond(false, 'Mail configuration missing. Copy config.sample.inc.php to config.inc.php.', 500);
+}
+
+$config = require $configFile;
+if (!is_array($config)) {
+    respond(false, 'Mail configuration invalid.', 500);
+}
+
+$smtp = is_array($config['smtp'] ?? null) ? $config['smtp'] : [];
+$recipient = trim((string) ($config['recipient'] ?? ''));
+$siteTitle = trim((string) ($config['site_title'] ?? 'Website'));
+$host = preg_replace('/[^a-zA-Z0-9.\-]/', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost'));
+$defaultFrom = 'no-reply@' . $host;
+
+if ($recipient === '' || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+    respond(false, 'Mail configuration incomplete: set a valid recipient.', 500);
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    respond(false, 'Method not allowed.', 405);
+}
+
+// Honeypot: hidden field, only bots fill it. Pretend success.
+if (!empty($_POST['website'] ?? '')) {
+    respond(true, 'Thanks!');
+}
+
+$name = trim((string) ($_POST['name'] ?? ''));
+$email = trim((string) ($_POST['email'] ?? ''));
+$subject = trim((string) ($_POST['subject'] ?? ''));
+$message = trim((string) ($_POST['message'] ?? ''));
+$privacy = !empty($_POST['privacy'] ?? '');
+
+$errors = [];
+if ($name === '') {
+    $errors[] = 'Please enter your name.';
+}
+if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $errors[] = 'Please enter a valid email address.';
+}
+if ($message === '') {
+    $errors[] = 'Please enter a message.';
+}
+if (!$privacy) {
+    $errors[] = 'Please accept the privacy notice.';
+}
+if (mb_strlen($name) > 120 || mb_strlen($email) > 160 || mb_strlen($message) > 5000) {
+    $errors[] = 'Input too long.';
+}
+if ($errors) {
+    respond(false, implode(' ', $errors), 422);
+}
+
+// Strip CR/LF from header-bound fields to prevent header injection.
+$stripCrlf = static fn(string $value): string => trim((string) preg_replace('/[\r\n]+/', ' ', $value));
+$name = $stripCrlf($name);
+$email = $stripCrlf($email);
+$subject = $stripCrlf($subject);
+
+$mailSubject = sprintf('[%s] Contact form%s', $siteTitle, $subject !== '' ? ': ' . $subject : '');
+$bodyLines = [
+    'New message from the website contact form.',
+    '',
+    'Name:    ' . $name,
+    'Email:   ' . $email,
+    'Subject: ' . ($subject !== '' ? $subject : '—'),
+    '',
+    'Message:',
+    $message,
+    '',
+    str_repeat('-', 40),
+    'Sent: ' . date('Y-m-d H:i:s'),
+    'IP:   ' . ($_SERVER['REMOTE_ADDR'] ?? '—'),
+];
+$body = implode("\r\n", $bodyLines);
+
+$smtpHost = trim((string) ($smtp['host'] ?? ''));
+$fromEmail = trim((string) ($smtp['from_email'] ?? $defaultFrom));
+$fromName = trim((string) ($smtp['from_name'] ?? $siteTitle));
+
+if ($smtpHost === '') {
+    // Fallback: PHP mail(). No SMTP configured.
+    $headers = [
+        'From: ' . sprintf('%s <%s>', $fromName, $fromEmail),
+        'Reply-To: ' . $email,
+        'Content-Type: text/plain; charset=UTF-8',
+        'X-Mailer: PHP/' . phpversion(),
+    ];
+    $sent = @mail($recipient, $mailSubject, $body, implode("\r\n", $headers));
+    if (!$sent) {
+        respond(false, 'The message could not be sent. Please try again later.', 500);
+    }
+    respond(true, 'Thanks! Your message has been sent.');
+}
+
+// SMTP path via PHPMailer.
+try {
+    $mail = new PHPMailer(true);
+    $mail->isSMTP();
+    $mail->Host = $smtpHost;
+    $mail->Port = (int) ($smtp['port'] ?? 587);
+    $mail->SMTPAuth = true;
+    $mail->Username = trim((string) ($smtp['username'] ?? ''));
+    $mail->Password = (string) ($smtp['password'] ?? '');
+    $mail->Timeout = (int) ($smtp['timeout'] ?? 15);
+    $mail->CharSet = PHPMailer::CHARSET_UTF8;
+
+    $encryption = smtpSecureMode((string) ($smtp['encryption'] ?? 'tls'));
+    if ($encryption !== '') {
+        $mail->SMTPSecure = $encryption;
+    } else {
+        $mail->SMTPAutoTLS = false;
+    }
+
+    $mail->setFrom($fromEmail, $fromName);
+    $mail->addAddress($recipient);
+    $mail->addReplyTo($email, $name);
+    $mail->Subject = $mailSubject;
+    $mail->Body = $body;
+    $mail->isHTML(false);
+    $mail->send();
+} catch (Exception $exception) {
+    respond(false, 'The message could not be sent. Please try again later.', 500);
+}
+
+respond(true, 'Thanks! Your message has been sent.');

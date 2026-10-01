@@ -364,6 +364,80 @@ runTest("routes npm dependencies to the workspace that needs them", () => {
   });
 });
 
+runTest("composes a static content site with a chosen mail strategy", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "site");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "My Site",
+      profile: "static-content-site",
+      modules: ["phpmailer-endpoint"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    // The generator, its content and templates land at the repo root.
+    assert.equal(fs.existsSync(path.join(targetDir, "build.js")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "content", "site.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "content", "index.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "templates", "layout.js")), true);
+    // The forms module owns the contact page and its PHP backend.
+    assert.equal(fs.existsSync(path.join(targetDir, "content", "kontakt.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "mail", "send.php")), true);
+    // Secrets are protected without a real config file shipping.
+    assert.equal(fs.existsSync(path.join(targetDir, "mail", "config.inc.php")), false);
+    assert.ok(
+      fs.readFileSync(path.join(targetDir, "mail", ".gitignore"), "utf8").includes("config.inc.php")
+    );
+
+    // The runtime owns package.json; the module contributes its deps by merge.
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    assert.equal(pkg.dependencies["gray-matter"], "^4.0.3");
+    assert.equal(pkg.dependencies.marked, "^4.3.0");
+  });
+});
+
+runTest("generates a static content site with npm CI defaults", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "site");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Example Site",
+      profile: "static-content-site"
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    const ci = fs.readFileSync(
+      path.join(targetDir, ".github", "workflows", "ci.yml"),
+      "utf8"
+    );
+
+    assert.equal(result.packageManager, "npm");
+    assert.equal(pkg.scripts.test, "node --test");
+    assert.match(ci, /actions\/checkout@v5/);
+    assert.match(ci, /actions\/setup-node@v5/);
+    assert.match(ci, /node-version: 24/);
+    assert.match(ci, /npm ci/);
+    assert.match(ci, /npm test/);
+    assert.doesNotMatch(ci, /pnpm/);
+  });
+});
+
+runTest("rejects picking more than one mail strategy", () => {
+  const composition = resolveComposition(repoRoot, {
+    profile: "static-content-site",
+    modules: ["phpmailer-endpoint", "headless-wp-forms"]
+  });
+
+  assert.ok(
+    composition.errors.some((entry) => entry.includes("conflicts with")),
+    JSON.stringify(composition.errors)
+  );
+});
+
 runTest("rejects npm dependencies aimed at a manifest nobody provides", () => {
   withTempDir((tempDir) => {
     copyCatalog(repoRoot, tempDir);
@@ -450,6 +524,12 @@ runTest("generates a react repository with agents metadata mirrors and ci", () =
     assert.match(agents, /Repository type: `react`/);
     assert.match(agents, /React Overlay/);
     assert.match(agents, /`dev`: `pnpm run dev`/);
+    const ci = fs.readFileSync(
+      path.join(targetDir, ".github", "workflows", "ci.yml"),
+      "utf8"
+    );
+    assert.match(ci, /corepack enable && pnpm install/);
+    assert.match(ci, /pnpm run test/);
 
     const doctorResult = doctor(repoRoot, targetDir);
     assert.equal(doctorResult.ok, true);
