@@ -12,8 +12,8 @@ server for the pages themselves. Deploy `dist/` as static files.
     the privacy page.
   - `phpmailer-endpoint` — self-hosted PHP + SMTP under `/mail/`. Needs a PHP host; no third
     party. Credentials live in `mail/config.inc.php` (git-ignored).
-  - `headless-wp-forms` — submits to a WordPress Contact Form 7 REST endpoint. Use when a
-    WordPress already exists.
+  - `headless-wp-forms` — submits to a Fluent Forms endpoint via `wp-fluent-forms-proxy`.
+    Use when a WordPress already exists.
 - **If you pick no forms module**, replace the `Contact` nav entry in `content/site.md`
   with a `mailto:` link, or add your own `content/kontakt.md`, so it does not 404.
 - Privacy matters here: external form gateways, embedded booking widgets and web fonts are

@@ -196,24 +196,20 @@ function collectOperations(repoRoot, options) {
       "workflows",
       "ci.yml.tmpl"
     );
+    const ciCommands = buildCiCommands({
+      runtimeName: variant.manifest.name,
+      packageManager,
+      installCommand: renderString(variant.manifest.ciSetupCommand, variables),
+      testCommand: renderString(variant.manifest.ciTestCommand, variables)
+    });
     operations.push({
       type: "write",
       target: path.join(options.targetDir, ".github", "workflows", "ci.yml"),
       content: renderString(fs.readFileSync(ciTemplate, "utf8"), {
         ...variables,
         CI_NODE_SETUP: nodeSetupStep(variant.manifest.name),
-        CI_SETUP_COMMAND: buildCiCommands({
-          runtimeName: variant.manifest.name,
-          packageManager,
-          installCommand: renderString(variant.manifest.ciSetupCommand, variables),
-          testCommand: renderString(variant.manifest.ciTestCommand, variables)
-        }).setup,
-        CI_TEST_COMMAND: buildCiCommands({
-          runtimeName: variant.manifest.name,
-          packageManager,
-          installCommand: renderString(variant.manifest.ciSetupCommand, variables),
-          testCommand: renderString(variant.manifest.ciTestCommand, variables)
-        }).test
+        CI_SETUP_COMMAND: ciCommands.setup,
+        CI_TEST_COMMAND: ciCommands.test
       })
     });
   }

@@ -8,7 +8,7 @@
   "questions": [
     {
       "id": "mail_strategy",
-      "prompt": "How should contact forms and mail be handled? Pick one: static-mail-gateway (posts to an external form service, works on static-only hosts), phpmailer-endpoint (self-hosted PHP + SMTP, needs a PHP host), or headless-wp-forms (submits to a WordPress Contact Form 7). Pick none to ship a mailto: link only.",
+      "prompt": "How should contact forms and mail be handled? Pick one: static-mail-gateway (posts to an external form service, works on static-only hosts), phpmailer-endpoint (self-hosted PHP + SMTP, needs a PHP host), or headless-wp-forms (submits to Fluent Forms via wp-fluent-forms-proxy). Pick none to ship a mailto: link only.",
       "suggestModules": ["static-mail-gateway", "phpmailer-endpoint", "headless-wp-forms"]
     }
   ],
