@@ -32,7 +32,7 @@ node scripts/init-repo.js explain-stack --profile <name>
 
 | Runtime | Language | Package manager(s) | Description |
 | --- | --- | --- | --- |
-| `node` | typescript | `pnpm`, `npm`, `yarn` | Node.js runtime with TypeScript-oriented project defaults. |
+| `node` | typescript | `npm`, `pnpm`, `yarn` | Node.js runtime with TypeScript-oriented project defaults. |
 | `python` | python | `uv`, `pip` | Python runtime with package-based source layout and typed boundaries. |
 | `rust` | rust | `cargo` | Rust runtime for system-facing applications and desktop shells. |
 

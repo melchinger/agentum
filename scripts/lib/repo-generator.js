@@ -13,6 +13,7 @@ const {
   toPythonPackage
 } = require("./template-utils");
 const { compositionDoctor } = require("./composition-catalog");
+const { buildCiCommands, nodeSetupStep } = require("./ci");
 
 function loadStacksManifest(repoRoot) {
   return readJson(path.join(repoRoot, "stacks", "manifest.json"));
@@ -200,8 +201,19 @@ function collectOperations(repoRoot, options) {
       target: path.join(options.targetDir, ".github", "workflows", "ci.yml"),
       content: renderString(fs.readFileSync(ciTemplate, "utf8"), {
         ...variables,
-        CI_SETUP_COMMAND: renderString(variant.manifest.ciSetupCommand, variables),
-        CI_TEST_COMMAND: renderString(variant.manifest.ciTestCommand, variables)
+        CI_NODE_SETUP: nodeSetupStep(variant.manifest.name),
+        CI_SETUP_COMMAND: buildCiCommands({
+          runtimeName: variant.manifest.name,
+          packageManager,
+          installCommand: renderString(variant.manifest.ciSetupCommand, variables),
+          testCommand: renderString(variant.manifest.ciTestCommand, variables)
+        }).setup,
+        CI_TEST_COMMAND: buildCiCommands({
+          runtimeName: variant.manifest.name,
+          packageManager,
+          installCommand: renderString(variant.manifest.ciSetupCommand, variables),
+          testCommand: renderString(variant.manifest.ciTestCommand, variables)
+        }).test
       })
     });
   }

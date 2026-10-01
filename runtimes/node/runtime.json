@@ -2,7 +2,7 @@
   "name": "node",
   "description": "Node.js runtime with TypeScript-oriented project defaults.",
   "language": "typescript",
-  "packageManagers": ["pnpm", "npm", "yarn"],
+  "packageManagers": ["npm", "pnpm", "yarn"],
   "directories": [
     "src",
     "tests"
@@ -12,7 +12,7 @@
   ],
   "commands": [
     "install: {{PACKAGE_MANAGER}} install",
-    "test: {{PACKAGE_MANAGER}} run test"
+    "test: {{PACKAGE_MANAGER}} test"
   ],
   "detect": {
     "files": ["package.json"]

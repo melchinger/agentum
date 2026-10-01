@@ -13,6 +13,7 @@ const {
 } = require("./template-utils");
 const { mergeCargoDependencies, renderCargoDependencies } = require("./cargo-dependencies");
 const { applyNpmDependencies, mergeNpmDependencies } = require("./npm-dependencies");
+const { buildCiCommands, nodeSetupStep } = require("./ci");
 
 // Collects the cargo dependency contributions of a resolved composition, in a stable
 // order so the generated Cargo.toml does not churn between runs.
@@ -506,13 +507,20 @@ function collectCompositionOperations(repoRoot, options) {
     // For multi-runtime, use first runtime commands as primary
     const installCommand = runtimes[0].manifest.commands.find((item) => item.startsWith("install: "));
     const testCommand = runtimes[0].manifest.commands.find((item) => item.startsWith("test: "));
+    const ciCommands = buildCiCommands({
+      runtimeName: runtimes[0].manifest.name,
+      packageManager,
+      installCommand: renderString((installCommand || "install: true").slice(9), variables),
+      testCommand: renderString((testCommand || "test: true").slice(6), variables)
+    });
     operations.push({
       type: "write",
       target: path.join(options.targetDir, ".github", "workflows", "ci.yml"),
       content: renderString(fs.readFileSync(ciTemplate, "utf8"), {
         ...variables,
-        CI_SETUP_COMMAND: renderString((installCommand || "install: true").slice(9), variables),
-        CI_TEST_COMMAND: renderString((testCommand || "test: true").slice(6), variables)
+        CI_NODE_SETUP: nodeSetupStep(runtimes[0].manifest.name),
+        CI_SETUP_COMMAND: ciCommands.setup,
+        CI_TEST_COMMAND: ciCommands.test
       })
     });
   }

@@ -1,5 +1,5 @@
 {
-  "defaultJsPackageManager": "pnpm",
+  "defaultJsPackageManager": "npm",
   "metadataFile": ".agentum-template.json",
   "mirrorFiles": [
     {

@@ -398,6 +398,34 @@ runTest("composes a static content site with a chosen mail strategy", () => {
   });
 });
 
+runTest("generates a static content site with npm CI defaults", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "site");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Example Site",
+      profile: "static-content-site"
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
+    const ci = fs.readFileSync(
+      path.join(targetDir, ".github", "workflows", "ci.yml"),
+      "utf8"
+    );
+
+    assert.equal(result.packageManager, "npm");
+    assert.equal(pkg.scripts.test, "node --test");
+    assert.match(ci, /actions\/checkout@v5/);
+    assert.match(ci, /actions\/setup-node@v5/);
+    assert.match(ci, /node-version: 24/);
+    assert.match(ci, /npm ci/);
+    assert.match(ci, /npm test/);
+    assert.doesNotMatch(ci, /pnpm/);
+  });
+});
+
 runTest("rejects picking more than one mail strategy", () => {
   const composition = resolveComposition(repoRoot, {
     profile: "static-content-site",
