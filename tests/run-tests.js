@@ -524,6 +524,12 @@ runTest("generates a react repository with agents metadata mirrors and ci", () =
     assert.match(agents, /Repository type: `react`/);
     assert.match(agents, /React Overlay/);
     assert.match(agents, /`dev`: `pnpm run dev`/);
+    const ci = fs.readFileSync(
+      path.join(targetDir, ".github", "workflows", "ci.yml"),
+      "utf8"
+    );
+    assert.match(ci, /corepack enable && pnpm install/);
+    assert.match(ci, /pnpm run test/);
 
     const doctorResult = doctor(repoRoot, targetDir);
     assert.equal(doctorResult.ok, true);

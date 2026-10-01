@@ -24,8 +24,11 @@ function buildCiCommands({ runtimeName, packageManager, installCommand, testComm
   }
 
   if (isNodeProject(runtimeName) && ["pnpm", "yarn"].includes(packageManager)) {
+    const dependencyInstall = installCommand === "corepack enable"
+      ? `${packageManager} install`
+      : installCommand;
     return {
-      setup: `corepack enable && ${installCommand}`,
+      setup: `corepack enable && ${dependencyInstall}`,
       test: testCommand
     };
   }
