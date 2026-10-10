@@ -29,7 +29,7 @@ marked.setOptions({ gfm: true, breaks: false });
 function loadMarkdown(file) {
   const source = fs.readFileSync(file, "utf8");
   const hasFrontMatter = /^---(?:\r?\n|$)/.test(source);
-  const frontMatter = source.match(/^---\r?\n([\s\S]*?)^---(?:\r?\n|$)/m);
+  const frontMatter = source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (hasFrontMatter && !frontMatter) {
     throw new Error(`Unclosed YAML front matter in ${file}: expected a closing --- delimiter`);
   }

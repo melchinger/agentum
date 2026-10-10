@@ -399,6 +399,8 @@ runTest("composes a static content site with a chosen mail strategy", () => {
     const buildScript = fs.readFileSync(path.join(targetDir, "build.js"), "utf8");
     assert.match(buildScript, /Unclosed YAML front matter/);
     assert.match(buildScript, /expected a mapping\/object/);
+    assert.equal(buildScript.includes("source.match(/^---\\r?\\n"), true);
+    assert.doesNotMatch(buildScript, /source\.match\([^\n]*\/m\)/);
   });
 });
 
