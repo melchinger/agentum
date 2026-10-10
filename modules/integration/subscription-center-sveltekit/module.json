@@ -21,6 +21,7 @@
   ],
   "requiredFiles": [
     "apps/web/src/app.d.ts",
+    "apps/web/src/env.ts",
     "apps/web/src/hooks.server.ts",
     "apps/web/src/lib/server/config.ts",
     "apps/web/src/lib/server/oidc.ts",

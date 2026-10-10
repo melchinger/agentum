@@ -395,6 +395,10 @@ runTest("composes a static content site with a chosen mail strategy", () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
     assert.equal(pkg.dependencies.marked, "^18.1.0");
     assert.equal(pkg.dependencies.yaml, "^2.9.1");
+
+    const buildScript = fs.readFileSync(path.join(targetDir, "build.js"), "utf8");
+    assert.match(buildScript, /Unclosed YAML front matter/);
+    assert.match(buildScript, /expected a mapping\/object/);
   });
 });
 
@@ -605,6 +609,10 @@ runTest("preserves Next.js public assets in fullstack container templates", () =
       dockerfile,
       /COPY --from=frontend-builder --chown=appuser:appuser \/workspace\/apps\/web\/public \.\/public\/app/
     );
+    assert.match(
+      dockerfile,
+      /RUN if \[ -f package-lock\.json \]; then npm ci; else npm install; fi/
+    );
   }
 });
 
@@ -644,18 +652,15 @@ runTest("generates a composed python repository from profile runtime modules and
     const dependabot = fs.readFileSync(dependabotPath, "utf8");
     const dependabotUpdates = [...dependabot.matchAll(/- package-ecosystem: ([^\r\n]+)\r?\n\s+directory: "([^"]+)"/g)]
       .map((match) => `${match[1]}:${match[2]}`);
-    assert.deepEqual(dependabotUpdates.filter((entry) => entry.startsWith("npm:")), [
+    assert.deepEqual(dependabotUpdates, [
+      "docker:/",
+      "github-actions:/",
       "npm:/",
-      "npm:/apps/web",
-      "npm:/packages/lib"
+      "pip:/",
+      "cargo:/",
+      "composer:/"
     ]);
-    assert.deepEqual(dependabotUpdates.filter((entry) => entry.startsWith("pip:")), ["pip:/", "pip:/apps/api"]);
-    assert.deepEqual(dependabotUpdates.filter((entry) => entry.startsWith("composer:")), [
-      "composer:/",
-      "composer:/mail"
-    ]);
-    assert.equal(dependabotUpdates.filter((entry) => entry === "docker:/").length, 1);
-    assert.equal(dependabotUpdates.filter((entry) => entry === "github-actions:/").length, 1);
+    assert.doesNotMatch(dependabot, /directory: "\/(?:apps\/web|packages\/lib|apps\/api|mail)"/);
     assert.equal(fs.existsSync(path.join(targetDir, "CLAUDE.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, ".github", "workflows", "ci.yml")), true);
 
@@ -1025,7 +1030,8 @@ runTest("composes the subscription-center-rust integration for an Axum service",
     // The OIDC crates must reach Cargo.toml without a hand-edit.
     const cargoToml = fs.readFileSync(path.join(targetDir, "Cargo.toml"), "utf8");
     assert.match(cargoToml, /jsonwebtoken = \{ version = "11", default-features = false, features = \["rust_crypto"\] \}/);
-    assert.match(cargoToml, /reqwest = \{/);
+    assert.match(cargoToml, /reqwest = \{ version = "0\.13", default-features = false, features = \["json", "rustls"\] \}/);
+    assert.doesNotMatch(cargoToml, /webpki-roots/);
 
     const doctorResult = compositionDoctor(repoRoot, targetDir);
     assert.equal(doctorResult.ok, true);
@@ -1130,6 +1136,10 @@ runTest("composes the subscription-center-sveltekit integration over sveltekit",
     assert.match(kill, /safeEqual/);
     const oidc = fs.readFileSync(path.join(webSrc, "lib", "server", "oidc.ts"), "utf8");
     assert.match(oidc, /enableNonRepudiationChecks\(configuration\)/);
+    const config = fs.readFileSync(path.join(webSrc, "lib", "server", "config.ts"), "utf8");
+    assert.match(config, /from "\$app\/env\/private"/);
+    assert.doesNotMatch(config, /process\.env/);
+    assert.equal(fs.existsSync(path.join(webSrc, "env.ts")), true);
 
     const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
     assert.match(env, /OPENID_ISSUER_URL=/);

@@ -12,20 +12,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-  - package-ecosystem: npm
-    directory: "/apps/web"
-    schedule:
-      interval: weekly
-  - package-ecosystem: npm
-    directory: "/packages/lib"
-    schedule:
-      interval: weekly
   - package-ecosystem: pip
     directory: "/"
-    schedule:
-      interval: weekly
-  - package-ecosystem: pip
-    directory: "/apps/api"
     schedule:
       interval: weekly
   - package-ecosystem: cargo
@@ -34,9 +22,5 @@ updates:
       interval: weekly
   - package-ecosystem: composer
     directory: "/"
-    schedule:
-      interval: weekly
-  - package-ecosystem: composer
-    directory: "/mail"
     schedule:
       interval: weekly

@@ -6,7 +6,7 @@ WORKDIR /workspace/apps/web
 RUN chown -R node:node /workspace
 COPY --chown=node:node apps/web/package*.json ./
 USER node
-RUN npm install
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 COPY --chown=node:node apps/web ./
 RUN npm run build
 

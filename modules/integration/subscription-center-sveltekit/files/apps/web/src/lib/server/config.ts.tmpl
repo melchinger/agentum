@@ -1,9 +1,22 @@
+import {
+  OPENID_ENABLED,
+  OPENID_ISSUER_URL,
+  OPENID_CLIENT_ID,
+  OPENID_CLIENT_SECRET,
+  OPENID_REDIRECT_URL,
+  OPENID_SCOPES,
+  OPENID_ADMIN_GROUP,
+  SESSION_SECRET,
+  SESSION_KILL_SECRET
+} from "$app/env/private";
+
 /**
  * Shared SubscriptionCenter / KanIDM OIDC configuration.
  *
- * All secrets are read from `process.env` so they are resolved at
- * runtime (never bundled into the client). See `docs/subscription-center.md`
- * for the values that have to be registered in the subscriptionCenter admin.
+ * All secrets are read from SvelteKit's private environment so they are
+ * resolved at runtime and never bundled into the client. See
+ * `docs/subscription-center.md` for the values that have to be registered in
+ * the subscriptionCenter admin.
  */
 
 export interface AppUser {
@@ -32,15 +45,15 @@ function bool(value: string | undefined, fallback: boolean): boolean {
 
 export function getConfig(): OidcConfig {
   return {
-    enabled: bool(process.env.OPENID_ENABLED, true),
-    issuerUrl: process.env.OPENID_ISSUER_URL ?? "",
-    clientId: process.env.OPENID_CLIENT_ID ?? "",
-    clientSecret: process.env.OPENID_CLIENT_SECRET ?? "",
-    redirectUrl: process.env.OPENID_REDIRECT_URL ?? "http://localhost:5173/auth/callback",
-    scopes: process.env.OPENID_SCOPES ?? "openid email profile groups",
-    adminGroup: process.env.OPENID_ADMIN_GROUP ?? "",
-    sessionSecret: process.env.SESSION_SECRET ?? "change-me-generate-a-random-32-byte-secret",
-    sessionKillSecret: process.env.SESSION_KILL_SECRET ?? "change-me-shared-with-subscriptioncenter"
+    enabled: bool(OPENID_ENABLED, true),
+    issuerUrl: OPENID_ISSUER_URL ?? "",
+    clientId: OPENID_CLIENT_ID ?? "",
+    clientSecret: OPENID_CLIENT_SECRET ?? "",
+    redirectUrl: OPENID_REDIRECT_URL ?? "http://localhost:5173/auth/callback",
+    scopes: OPENID_SCOPES ?? "openid email profile groups",
+    adminGroup: OPENID_ADMIN_GROUP ?? "",
+    sessionSecret: SESSION_SECRET ?? "change-me-generate-a-random-32-byte-secret",
+    sessionKillSecret: SESSION_KILL_SECRET ?? "change-me-shared-with-subscriptioncenter"
   };
 }
 

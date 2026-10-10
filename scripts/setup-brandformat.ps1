@@ -26,13 +26,14 @@ $root = (Resolve-Path $ProjectRoot).Path
 
 Write-Utf8NoBom (Join-Path $root "pyproject.toml") @'
 [build-system]
-requires = ["setuptools>=84,<85", "wheel>=0.48,<1.0"]
+requires = ["setuptools>=84,<86", "wheel>=0.48,<1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "brandformat"
 version = "0.1.0"
 description = "Brand-formatted PDF generation service with FastAPI, HTMX, MCP, and PostgreSQL."
+# Keep this aligned with the pinned Playwright Noble image, which includes Python 3.12.
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.143,<1.0",
