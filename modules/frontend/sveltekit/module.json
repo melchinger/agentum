@@ -1,7 +1,7 @@
 {
   "name": "sveltekit",
   "category": "frontend",
-  "description": "SvelteKit with adapter-node for SSR-capable web apps in a monorepo layout.",
+  "description": "SvelteKit 3 with adapter-node for SSR-capable web apps in a monorepo layout.",
   "compatibleRuntimes": ["node"],
   "conflictsWith": ["nextjs", "sveltekit-static"],
   "directories": [
@@ -10,7 +10,7 @@
   ],
   "requiredFiles": [
     "apps/web/package.json",
-    "apps/web/svelte.config.js",
+    "apps/web/vite.config.ts",
     "apps/web/src/app.html"
   ],
   "commands": [

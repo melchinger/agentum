@@ -11,6 +11,7 @@
  */
 import { timingSafeEqual } from "node:crypto";
 import express, { type NextFunction, type Request, type Response, type RequestHandler } from "express";
+import { authorizationCodeGrant, buildAuthorizationUrl } from "openid-client";
 
 import { loadOidcConfig, openidEnabled, sessionKillSecret, stripSpn } from "./config.js";
 
@@ -20,7 +21,7 @@ function safeEqual(a: string, b: string): boolean {
   const bufB = Buffer.from(b);
   return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
 }
-import { codeChallengeFor, createAuthRequestState, getClient } from "./oidc.js";
+import { createAuthRequestState, getClient } from "./oidc.js";
 import { forgetSession, killSessionsForUid, registerSession } from "./session.js";
 
 let devBypassWarned = false;
@@ -91,22 +92,21 @@ export function createSubscriptionCenterRouter(): express.Router {
     try {
       const config = loadOidcConfig();
       const client = await getClient();
-      const { state, nonce, codeVerifier } = createAuthRequestState();
+      const { state, nonce, codeVerifier, codeChallenge } = await createAuthRequestState();
 
       req.session.pending = { state, nonce, codeVerifier };
 
-      const authorizeUrl = client.authorizationUrl({
+      const authorizeUrl = buildAuthorizationUrl(client, {
         response_type: "code",
-        client_id: config.clientId,
         redirect_uri: config.redirectUrl,
         scope: config.scopes,
         state,
         nonce,
-        code_challenge: codeChallengeFor(codeVerifier),
+        code_challenge: codeChallenge,
         code_challenge_method: "S256",
       });
 
-      res.redirect(authorizeUrl);
+      res.redirect(authorizeUrl.href);
     } catch (error) {
       next(error);
     }
@@ -127,17 +127,22 @@ export function createSubscriptionCenterRouter(): express.Router {
 
       const config = loadOidcConfig();
       const client = await getClient();
-      const params = client.callbackParams(req);
+      const currentUrl = new URL(config.redirectUrl);
+      currentUrl.search = new URL(req.originalUrl, currentUrl).search;
 
-      // openid-client validates the id_token signature (ES256), aud, iss and
-      // nonce, and enforces the PKCE code_verifier below.
-      const tokenSet = await client.callback(config.redirectUrl, params, {
-        state: pending.state,
-        nonce: pending.nonce,
-        code_verifier: pending.codeVerifier,
+      // openid-client validates the id_token signature (ES256), audience,
+      // issuer and nonce, and enforces state and PKCE below.
+      const tokenSet = await authorizationCodeGrant(client, currentUrl, {
+        expectedState: pending.state,
+        expectedNonce: pending.nonce,
+        pkceCodeVerifier: pending.codeVerifier,
+        idTokenExpected: true,
       });
 
       const claims = tokenSet.claims();
+      if (!claims) {
+        throw new Error("OIDC token endpoint did not return a validated ID token.");
+      }
       const preferredUsername =
         typeof claims.preferred_username === "string" ? claims.preferred_username : undefined;
       const uid = preferredUsername ? stripSpn(preferredUsername) : stripSpn(claims.sub);

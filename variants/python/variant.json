@@ -1,7 +1,7 @@
 {
   "name": "python",
   "description": "Python application skeleton with typed package layout and clear domain boundaries.",
-  "runtime": "Python 3.12+",
+  "runtime": "Python 3.14+",
   "packageManagers": ["uv", "pip"],
   "directories": [
     "src/{{PYTHON_PACKAGE}}",

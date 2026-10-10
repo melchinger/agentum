@@ -4,16 +4,16 @@ Additive integration that makes the `sveltekit` app (under `apps/web/`)
 SubscriptionCenter-ready: OIDC login via KanIDM, authorization by KanIDM group
 membership, and a session-kill endpoint the subscriptionCenter service calls to
 revoke sessions. This module ships only server-side auth source — it does not
-own `package.json`, `svelte.config.js`, or `tsconfig.json`.
+own `package.json`, `vite.config.ts`, or `tsconfig.json`.
 
 ### 1. npm dependencies
 
 Merged into `apps/web/package.json` by the generator from `npmDependencies` in
 `module.json` — no manual step. Run an install afterwards.
 
-- `openid-client` v5 — OIDC discovery, PKCE (S256), token exchange and full
+- `openid-client` v6 — OIDC discovery, PKCE (S256), token exchange and full
   id_token validation (JWKS / ES256 / aud / iss / nonce). The v5 API is
-  incompatible with v6; stay on v5.
+  incompatible with v6; use v6 and do not mix in v5 calls.
 - `jose` — HMAC-signs the short-lived state cookie and the session cookie with
   `SESSION_SECRET`.
 

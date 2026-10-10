@@ -13,8 +13,8 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const matter = require("gray-matter");
 const { marked } = require("marked");
+const YAML = require("yaml");
 
 const layout = require("./templates/layout.js");
 const page = require("./templates/page.js");
@@ -27,10 +27,21 @@ const DIST = path.join(ROOT, "dist");
 marked.setOptions({ gfm: true, breaks: false });
 
 function loadMarkdown(file) {
-  const parsed = matter(fs.readFileSync(file, "utf8"));
-  const body = parsed.content.trim();
+  const source = fs.readFileSync(file, "utf8");
+  const hasFrontMatter = /^---(?:\r?\n|$)/.test(source);
+  const frontMatter = source.match(/^---\r?\n([\s\S]*?)^---(?:\r?\n|$)/m);
+  if (hasFrontMatter && !frontMatter) {
+    throw new Error(`Unclosed YAML front matter in ${file}: expected a closing --- delimiter`);
+  }
+
+  const data = frontMatter ? YAML.parse(frontMatter[1]) : {};
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error(`Invalid YAML front matter in ${file}: expected a mapping/object`);
+  }
+
+  const body = (frontMatter ? source.slice(frontMatter[0].length) : source).trim();
   return {
-    ...parsed.data,
+    ...data,
     body_md: body,
     body_html: marked.parse(body),
   };

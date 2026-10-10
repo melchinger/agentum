@@ -1,7 +1,7 @@
+import { dev } from "$app/env";
 import { error, redirect, type RequestHandler } from "@sveltejs/kit";
-import { dev } from "$app/environment";
-import { OIDC_STATE_COOKIE, handleCallback } from "$lib/server/oidc";
-import { SESSION_COOKIE, createSession, signSessionCookie } from "$lib/server/session";
+import { OIDC_STATE_COOKIE, handleCallback } from "../../../lib/server/oidc";
+import { SESSION_COOKIE, createSession, signSessionCookie } from "../../../lib/server/session";
 
 /**
  * GET /auth/callback?code&state
@@ -9,12 +9,11 @@ import { SESSION_COOKIE, createSession, signSessionCookie } from "$lib/server/se
  * id_token (JWKS/ES256/aud/iss/nonce) and establishes a server-side session.
  */
 export const GET: RequestHandler = async ({ url, cookies }) => {
-  const params = Object.fromEntries(url.searchParams) as Record<string, string>;
   const stateCookie = cookies.get(OIDC_STATE_COOKIE);
 
   let user;
   try {
-    user = await handleCallback(params, stateCookie);
+    user = await handleCallback(url, stateCookie);
   } catch (err) {
     console.error("[subscription-center] OIDC callback failed:", err);
     throw error(401, "OIDC login failed.");

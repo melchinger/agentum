@@ -26,31 +26,32 @@ $root = (Resolve-Path $ProjectRoot).Path
 
 Write-Utf8NoBom (Join-Path $root "pyproject.toml") @'
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=84,<86", "wheel>=0.48,<1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "brandformat"
 version = "0.1.0"
 description = "Brand-formatted PDF generation service with FastAPI, HTMX, MCP, and PostgreSQL."
+# Keep this aligned with the pinned Playwright Noble image, which includes Python 3.12.
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.116,<1.0",
-  "uvicorn[standard]>=0.35,<1.0",
-  "jinja2>=3.1,<4.0",
-  "python-multipart>=0.0.20,<1.0",
-  "sqlalchemy>=2.0,<3.0",
-  "psycopg[binary]>=3.2,<4.0",
-  "alembic>=1.16,<2.0",
-  "pydantic-settings>=2.10,<3.0",
-  "playwright>=1.54,<2.0",
-  "markdown>=3.8,<4.0"
+  "fastapi>=0.143,<1.0",
+  "uvicorn[standard]>=0.54,<1.0",
+  "jinja2>=3.1.6,<4.0",
+  "python-multipart>=0.0.32,<1.0",
+  "sqlalchemy>=2.1.4,<3.0",
+  "psycopg[binary]>=3.3.6,<4.0",
+  "alembic>=1.20,<2.0",
+  "pydantic-settings>=2.15,<3.0",
+  "playwright>=1.63,<2.0",
+  "markdown>=3.11,<4.0"
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.4,<9.0",
-  "httpx>=0.28,<1.0"
+  "pytest>=9.1.1,<10.0",
+  "httpx>=0.28.1,<1.0"
 ]
 
 [tool.setuptools]
@@ -122,8 +123,30 @@ PDF_OUTPUT_DIR=./data/pdfs
 DEFAULT_TEMPLATE_ID=default
 '@
 
+Write-Utf8NoBom (Join-Path $root ".dockerignore") @'
+.git
+.github
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.crt
+**/*.secret
+**/secrets
+**/secrets/**
+**/__pycache__
+**/*.py[cod]
+**/.venv
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+'@
+
 Write-Utf8NoBom (Join-Path $root "Dockerfile") @'
-FROM mcr.microsoft.com/playwright/python:v1.54.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.63.0-noble@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -135,11 +158,11 @@ COPY src /app/src
 COPY templates /app/templates
 COPY migrations /app/migrations
 COPY alembic.ini /app/alembic.ini
-COPY docs /app/docs
 
-RUN python -m pip install --upgrade pip \
-    && python -m pip install -e .
+RUN python -m pip install --no-cache-dir -e . \
+    && chown -R pwuser:pwuser /app
 
+USER pwuser
 EXPOSE 8000
 
 CMD ["uvicorn", "brandformat.interfaces.http.app:app", "--host", "0.0.0.0", "--port", "8000"]

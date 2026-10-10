@@ -46,7 +46,7 @@ node scripts/init-repo.js explain-stack --profile <name>
 | `fastapi` | backend | `python` | — | — | ASGI HTTP delivery layer for Python services. |
 | `fastapi-monorepo` | backend | `python` | — | — | ASGI HTTP delivery layer for Python services in a monorepo structure |
 | `socketio-session` | backend | `node` | — | `fastapi`, `boardgame-io-server` | Realtime-Session-Server: Socket.IO-Räume über eine server-autoritative State-Machine mit rollenbasierter Command-Autorisierung und fairem Crypto-Shuffle. Stack-Anker (besitzt package.json/tsconfig). |
-| `single-container` | deploy | `python`, `node` | — | — | Single-container deployment profile. |
+| `single-container` | deploy | `python` | — | — | Single-container deployment profile. |
 | `single-container-fullstack` | deploy | `node`, `python` | — | — | Single Docker container for fullstack monorepo (Next.js + FastAPI) |
 | `tauri` | desktop-shell | `rust` | — | — | Cross-platform desktop shell with Rust core and web UI. |
 | `playwright-pdf` | document | `python`, `node` | — | — | HTML-to-PDF pipeline using browser rendering. |
@@ -57,12 +57,12 @@ node scripts/init-repo.js explain-stack --profile <name>
 | `boardgame-io-react` | frontend | `node` | `boardgame-io-core` | — | boardgame.io React-Client: Board-Komponente, über SocketIO/Local-Multiplayer an das Spiel gebunden. |
 | `htmx` | frontend | `python`, `node` | — | — | Server-rendered HTML with progressive enhancement boundaries. |
 | `markdown-static` | frontend | `node` | — | `nextjs`, `react`, `svelte`, `sveltekit`, `sveltekit-static`, `htmx`, `socketio-react`, `boardgame-io-react` | Zero-framework static site generator. Content lives in content/*.md (front matter + Markdown), templates are plain JS functions, and `node build.js` renders static HTML into dist/. Editable by non-developers, deployable as flat files. |
-| `nextjs` | frontend | `node` | — | `sveltekit`, `sveltekit-static` | Next.js 15 App Router with TypeScript and React |
+| `nextjs` | frontend | `node` | — | `sveltekit`, `sveltekit-static` | Next.js 16 App Router with TypeScript and React |
 | `react` | frontend | `node`, `rust` | — | — | React SPA frontend with a minimal Vite-style structure. |
 | `socketio-react` | frontend | `node` | `socketio-session` | — | React-Client für die Realtime-Session: socket.io-client-Verbindung, Live-State-Rendering, rollengesteuerte Aktionen. |
 | `svelte` | frontend | `node`, `rust` | — | — | Svelte SPA frontend with a minimal Vite-style structure. |
-| `sveltekit` | frontend | `node` | — | `nextjs`, `sveltekit-static` | SvelteKit with adapter-node for SSR-capable web apps in a monorepo layout. |
-| `sveltekit-static` | frontend | `node`, `rust` | — | `nextjs`, `sveltekit`, `socketio-session`, `boardgame-io-core` | SvelteKit with adapter-static for Tauri or CDN-hosted frontends. Prerendered, no server runtime. |
+| `sveltekit` | frontend | `node` | — | `nextjs`, `sveltekit-static` | SvelteKit 3 with adapter-node for SSR-capable web apps in a monorepo layout. |
+| `sveltekit-static` | frontend | `node`, `rust` | — | `nextjs`, `sveltekit`, `socketio-session`, `boardgame-io-core` | SvelteKit 3 with adapter-static for Tauri or CDN-hosted frontends. Prerendered, no server runtime. |
 | `ts-library` | frontend | `node` | — | — | Standalone TypeScript library built with Vite in library mode, for an embeddable SDK or player shipped as its own package. |
 | `boardgame-io-core` | game-engine | `node` | — | — | boardgame.io Game-Objekt: deterministische Moves, Turns/Phases, geheimer State via playerView, plus Vitest-Harness. |
 | `mcp-python` | integration | `python` | — | — | Python-facing MCP tool integration boundary. |

@@ -1,28 +1,29 @@
-version: "3.8"
-
 services:
   fullstack:
     build: .
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/{{PROJECT_SLUG}}
-      - PYTHONUNBUFFERED=1
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in the environment}
+      PYTHONUNBUFFERED: "1"
     depends_on:
-      - db
-    volumes:
-      - ./apps/api/src:/app/src
+      db:
+        condition: service_healthy
 
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     environment:
-      - POSTGRES_DB={{PROJECT_SLUG}}
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_USER=postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in the environment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the environment}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in the environment}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
 
 volumes:
   postgres_data:
