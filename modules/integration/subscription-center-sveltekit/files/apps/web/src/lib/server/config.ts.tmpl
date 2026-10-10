@@ -1,9 +1,7 @@
-import { env } from "$env/dynamic/private";
-
 /**
  * Shared SubscriptionCenter / KanIDM OIDC configuration.
  *
- * All secrets are read from `$env/dynamic/private` so they are resolved at
+ * All secrets are read from `process.env` so they are resolved at
  * runtime (never bundled into the client). See `docs/subscription-center.md`
  * for the values that have to be registered in the subscriptionCenter admin.
  */
@@ -34,15 +32,15 @@ function bool(value: string | undefined, fallback: boolean): boolean {
 
 export function getConfig(): OidcConfig {
   return {
-    enabled: bool(env.OPENID_ENABLED, true),
-    issuerUrl: env.OPENID_ISSUER_URL ?? "",
-    clientId: env.OPENID_CLIENT_ID ?? "",
-    clientSecret: env.OPENID_CLIENT_SECRET ?? "",
-    redirectUrl: env.OPENID_REDIRECT_URL ?? "http://localhost:5173/auth/callback",
-    scopes: env.OPENID_SCOPES ?? "openid email profile groups",
-    adminGroup: env.OPENID_ADMIN_GROUP ?? "",
-    sessionSecret: env.SESSION_SECRET ?? "change-me-generate-a-random-32-byte-secret",
-    sessionKillSecret: env.SESSION_KILL_SECRET ?? "change-me-shared-with-subscriptioncenter"
+    enabled: bool(process.env.OPENID_ENABLED, true),
+    issuerUrl: process.env.OPENID_ISSUER_URL ?? "",
+    clientId: process.env.OPENID_CLIENT_ID ?? "",
+    clientSecret: process.env.OPENID_CLIENT_SECRET ?? "",
+    redirectUrl: process.env.OPENID_REDIRECT_URL ?? "http://localhost:5173/auth/callback",
+    scopes: process.env.OPENID_SCOPES ?? "openid email profile groups",
+    adminGroup: process.env.OPENID_ADMIN_GROUP ?? "",
+    sessionSecret: process.env.SESSION_SECRET ?? "change-me-generate-a-random-32-byte-secret",
+    sessionKillSecret: process.env.SESSION_KILL_SECRET ?? "change-me-shared-with-subscriptioncenter"
   };
 }
 

@@ -282,7 +282,7 @@ runTest("composes an axum service with merged cargo dependencies", () => {
     // Both modules contribute to the one Cargo.toml the rust runtime owns.
     assert.ok(cargoToml.includes('axum = "0.8"'), cargoToml);
     assert.ok(cargoToml.includes("sqlx = {"), cargoToml);
-    assert.ok(cargoToml.includes('jsonwebtoken = "9"'), cargoToml);
+    assert.ok(cargoToml.includes('jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto"] }'), cargoToml);
     // The runtime's placeholder must not survive into the generated manifest.
     assert.ok(!cargoToml.includes("{{"), cargoToml);
     // axum is declared by both modules and must appear exactly once.
@@ -354,8 +354,8 @@ runTest("routes npm dependencies to the workspace that needs them", () => {
 
     // The auth layer belongs to the frontend workspace, not the repository root.
     const web = JSON.parse(fs.readFileSync(path.join(targetDir, "apps", "web", "package.json"), "utf8"));
-    assert.equal(web.dependencies["openid-client"], "^5.7.0");
-    assert.equal(web.dependencies.jose, "^5.9.6");
+    assert.equal(web.dependencies["openid-client"], "^6.8.8");
+    assert.equal(web.dependencies.jose, "^6.2.12");
     // sveltekit's own devDependencies must survive the merge.
     assert.ok(web.devDependencies["@sveltejs/kit"], JSON.stringify(web.devDependencies));
 
@@ -393,8 +393,8 @@ runTest("composes a static content site with a chosen mail strategy", () => {
 
     // The runtime owns package.json; the module contributes its deps by merge.
     const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
-    assert.equal(pkg.dependencies["gray-matter"], "^4.0.3");
-    assert.equal(pkg.dependencies.marked, "^4.3.0");
+    assert.equal(pkg.dependencies.marked, "^18.1.0");
+    assert.equal(pkg.dependencies.yaml, "^2.9.1");
   });
 });
 
@@ -417,8 +417,9 @@ runTest("generates a static content site with npm CI defaults", () => {
 
     assert.equal(result.packageManager, "npm");
     assert.equal(pkg.scripts.test, "node --test");
-    assert.match(ci, /actions\/checkout@v5/);
-    assert.match(ci, /actions\/setup-node@v5/);
+    assert.match(ci, /actions\/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5/);
+    assert.match(ci, /actions\/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5/);
+    assert.match(ci, /permissions:\s+contents: read/);
     assert.match(ci, /node-version: 24/);
     assert.match(ci, /npm ci/);
     assert.match(ci, /npm test/);
@@ -536,6 +537,77 @@ runTest("generates a react repository with agents metadata mirrors and ci", () =
   });
 });
 
+runTest("keeps fullstack container context secret-safe and PostgreSQL 18 compatible", () => {
+  const moduleDir = path.join(repoRoot, "modules", "deploy", "single-container-fullstack");
+  const dockerignore = fs.readFileSync(path.join(moduleDir, "files", ".dockerignore.tmpl"), "utf8");
+  assert.match(dockerignore, /\*\*\/\.env/);
+  assert.match(dockerignore, /!\*\*\/\.env\.example/);
+  assert.match(dockerignore, /\*\*\/\*\.pem/);
+  assert.match(dockerignore, /\*\*\/secrets\/\*\*/);
+
+  const compose = fs.readFileSync(path.join(moduleDir, "files", "docker-compose.yml.tmpl"), "utf8");
+  assert.match(compose, /postgres_data:\/var\/lib\/postgresql(?:\r?\n|$)/);
+  assert.doesNotMatch(compose, /\/var\/lib\/postgresql\/data/);
+  assert.doesNotMatch(compose, /ports:\s*\r?\n\s*- ["']?5432/);
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(moduleDir, "module.json"), "utf8"));
+  assert.ok(manifest.rules.some((rule) => rule.message.includes("migrate PostgreSQL 16 data")));
+});
+
+runTest("generates a Next.js flat ESLint configuration", () => {
+  withTempDir((tempDir) => {
+    const targetDir = path.join(tempDir, "next-app");
+    const result = collectCompositionOperations(repoRoot, {
+      targetDir,
+      projectName: "Next App",
+      runtime: "node",
+      modules: ["nextjs"],
+      policies: []
+    });
+
+    applyOperations(targetDir, result.operations);
+
+    const webPackage = JSON.parse(fs.readFileSync(path.join(targetDir, "apps", "web", "package.json"), "utf8"));
+    assert.equal(webPackage.scripts.lint, "eslint .");
+    assert.equal(webPackage.devDependencies.eslint, "^10.12.0");
+    assert.equal(webPackage.devDependencies["@eslint/js"], "^10.0.1");
+    assert.equal(webPackage.devDependencies["typescript-eslint"], "^8.71.1");
+    assert.equal(webPackage.devDependencies["eslint-config-next"], undefined);
+
+    const eslintConfigPath = path.join(targetDir, "apps", "web", "eslint.config.mjs");
+    assert.equal(fs.existsSync(eslintConfigPath), true);
+    const eslintConfig = fs.readFileSync(eslintConfigPath, "utf8");
+    assert.match(eslintConfig, /from "@eslint\/js"/);
+    assert.match(eslintConfig, /from "typescript-eslint"/);
+    assert.match(eslintConfig, /js\.configs\.recommended/);
+    assert.match(eslintConfig, /tseslint\.configs\.recommended/);
+    assert.match(eslintConfig, /globalIgnores/);
+    assert.match(eslintConfig, /\.next\/\*\*/);
+    assert.match(eslintConfig, /out\/\*\*/);
+    assert.match(eslintConfig, /build\/\*\*/);
+    assert.match(eslintConfig, /next-env\.d\.ts/);
+  });
+});
+
+runTest("preserves Next.js public assets in fullstack container templates", () => {
+  const nextjsDir = path.join(repoRoot, "modules", "frontend", "nextjs");
+  const nextjsManifest = JSON.parse(fs.readFileSync(path.join(nextjsDir, "module.json"), "utf8"));
+  assert.ok(nextjsManifest.requiredFiles.includes("apps/web/public/.gitkeep"));
+  assert.equal(fs.existsSync(path.join(nextjsDir, "files", "apps", "web", "public", ".gitkeep")), true);
+
+  const fullstackDockerfiles = [
+    path.join(repoRoot, "modules", "deploy", "single-container-fullstack", "files", "Dockerfile.tmpl"),
+    path.join(repoRoot, "modules", "deploy", "single-container", "files", "Dockerfile.fullstack.tmpl")
+  ];
+  for (const dockerfilePath of fullstackDockerfiles) {
+    const dockerfile = fs.readFileSync(dockerfilePath, "utf8");
+    assert.match(
+      dockerfile,
+      /COPY --from=frontend-builder --chown=appuser:appuser \/workspace\/apps\/web\/public \.\/public\/app/
+    );
+  }
+});
+
 runTest("generates a composed python repository from profile runtime modules and policies", () => {
   withTempDir((tempDir) => {
     const targetDir = path.join(tempDir, "saas-python");
@@ -557,6 +629,33 @@ runTest("generates a composed python repository from profile runtime modules and
     assert.equal(fs.existsSync(path.join(targetDir, "templates", "pdf", "README.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "migrations", "README.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "Dockerfile")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, ".dockerignore")), true);
+    const dockerfile = fs.readFileSync(path.join(targetDir, "Dockerfile"), "utf8");
+    assert.match(dockerfile, /python:3\.14-slim@sha256:a2b82f3c/);
+    assert.match(dockerfile, /COPY \. \/app/);
+    assert.match(dockerfile, /--no-cache-dir/);
+    assert.match(dockerfile, /USER appuser/);
+    const dockerignore = fs.readFileSync(path.join(targetDir, ".dockerignore"), "utf8");
+    assert.match(dockerignore, /\*\*\/\.env\.\*/);
+    assert.match(dockerignore, /!\*\*\/\.env\.example/);
+    assert.match(dockerignore, /\*\*\/\*\.key/);
+    const dependabotPath = path.join(targetDir, ".github", "dependabot.yml");
+    assert.equal(fs.existsSync(dependabotPath), true);
+    const dependabot = fs.readFileSync(dependabotPath, "utf8");
+    const dependabotUpdates = [...dependabot.matchAll(/- package-ecosystem: ([^\r\n]+)\r?\n\s+directory: "([^"]+)"/g)]
+      .map((match) => `${match[1]}:${match[2]}`);
+    assert.deepEqual(dependabotUpdates.filter((entry) => entry.startsWith("npm:")), [
+      "npm:/",
+      "npm:/apps/web",
+      "npm:/packages/lib"
+    ]);
+    assert.deepEqual(dependabotUpdates.filter((entry) => entry.startsWith("pip:")), ["pip:/", "pip:/apps/api"]);
+    assert.deepEqual(dependabotUpdates.filter((entry) => entry.startsWith("composer:")), [
+      "composer:/",
+      "composer:/mail"
+    ]);
+    assert.equal(dependabotUpdates.filter((entry) => entry === "docker:/").length, 1);
+    assert.equal(dependabotUpdates.filter((entry) => entry === "github-actions:/").length, 1);
     assert.equal(fs.existsSync(path.join(targetDir, "CLAUDE.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, ".github", "workflows", "ci.yml")), true);
 
@@ -834,15 +933,15 @@ runTest("generates a composed tauri+sveltekit desktop repository", () => {
     applyOperations(targetDir, result.operations);
 
     assert.equal(fs.existsSync(path.join(targetDir, "Cargo.toml")), true);
-    assert.equal(fs.existsSync(path.join(targetDir, "svelte.config.js")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "vite.config.ts")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "src", "app.html")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "src", "routes", "+page.svelte")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "src", "routes", "+layout.ts")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "src-tauri", "tauri.conf.json")), true);
 
-    const svelteConfig = fs.readFileSync(path.join(targetDir, "svelte.config.js"), "utf8");
-    assert.match(svelteConfig, /pages: "dist"/);
-    assert.match(svelteConfig, /adapter-static/);
+    const viteConfig = fs.readFileSync(path.join(targetDir, "vite.config.ts"), "utf8");
+    assert.match(viteConfig, /pages: "dist"/);
+    assert.match(viteConfig, /adapter-static/);
 
     const tauriConfig = JSON.parse(fs.readFileSync(path.join(targetDir, "src-tauri", "tauri.conf.json"), "utf8"));
     assert.equal(tauriConfig.build.frontendDist, "../dist");
@@ -925,7 +1024,7 @@ runTest("composes the subscription-center-rust integration for an Axum service",
 
     // The OIDC crates must reach Cargo.toml without a hand-edit.
     const cargoToml = fs.readFileSync(path.join(targetDir, "Cargo.toml"), "utf8");
-    assert.match(cargoToml, /jsonwebtoken = "9"/);
+    assert.match(cargoToml, /jsonwebtoken = \{ version = "11", default-features = false, features = \["rust_crypto"\] \}/);
     assert.match(cargoToml, /reqwest = \{/);
 
     const doctorResult = compositionDoctor(repoRoot, targetDir);
@@ -989,6 +1088,8 @@ runTest("composes the subscription-center-node integration for an Express backen
     const router = fs.readFileSync(path.join(targetDir, "src", "auth", "router.ts"), "utf8");
     assert.match(router, /\/internal\/session-kill/);
     assert.match(router, /timingSafeEqual/);
+    const oidc = fs.readFileSync(path.join(targetDir, "src", "auth", "oidc.ts"), "utf8");
+    assert.match(oidc, /enableNonRepudiationChecks\(configuration\)/);
 
     const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
     assert.match(env, /SESSION_KILL_SECRET=/);
@@ -1027,6 +1128,8 @@ runTest("composes the subscription-center-sveltekit integration over sveltekit",
     );
     // Bearer check must be constant-time.
     assert.match(kill, /safeEqual/);
+    const oidc = fs.readFileSync(path.join(webSrc, "lib", "server", "oidc.ts"), "utf8");
+    assert.match(oidc, /enableNonRepudiationChecks\(configuration\)/);
 
     const env = fs.readFileSync(path.join(targetDir, ".env.example"), "utf8");
     assert.match(env, /OPENID_ISSUER_URL=/);
@@ -1079,6 +1182,14 @@ runTest("generates variant specific python package paths", () => {
       true
     );
     assert.equal(fs.existsSync(path.join(targetDir, "Dockerfile")), true);
+    const dockerfile = fs.readFileSync(path.join(targetDir, "Dockerfile"), "utf8");
+    assert.match(dockerfile, /COPY \. \/app/);
+    assert.match(dockerfile, /--no-cache-dir/);
+    assert.match(dockerfile, /USER appuser/);
+    const dockerignore = fs.readFileSync(path.join(targetDir, ".dockerignore"), "utf8");
+    assert.match(dockerignore, /\*\*\/\.env\.\*/);
+    assert.match(dockerignore, /!\*\*\/\.env\.example/);
+    assert.match(dockerignore, /\*\*\/secrets\/\*\*/);
     assert.equal(
       fs.existsSync(path.join(targetDir, ".github", "workflows", "ci.yml")),
       false

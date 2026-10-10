@@ -1,39 +1,32 @@
 # Multi-stage build for fullstack monorepo (Next.js + FastAPI)
 
-# Stage 1: Build Next.js frontend
-FROM node:20-alpine AS frontend-builder
+# Stage 1: Build the Next.js frontend.
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS frontend-builder
 WORKDIR /workspace/apps/web
-COPY apps/web/package.json apps/web/package-lock.json* apps/web/pnpm-lock.yaml* ./
-RUN npm ci || (npm install -g pnpm && pnpm install)
-COPY apps/web ./
+RUN chown -R node:node /workspace
+COPY --chown=node:node apps/web/package*.json ./
+USER node
+RUN npm install
+COPY --chown=node:node apps/web ./
 RUN npm run build
 
-# Stage 2: Python runtime with FastAPI
-FROM python:3.12-slim
+# Stage 2: Run FastAPI as an unprivileged user.
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+RUN useradd --create-home --uid 10001 appuser
+COPY apps/api ./apps/api
+RUN python -m pip install --no-cache-dir ./apps/api \
+    && chown -R appuser:appuser /app
 
-# Copy FastAPI backend files
-COPY apps/api/pyproject.toml ./
-RUN pip install --no-cache-dir -e .
+# Keep the build output and public assets available to an application-specific static-file bridge.
+COPY --from=frontend-builder --chown=appuser:appuser /workspace/apps/web/.next ./public/.next
+COPY --from=frontend-builder --chown=appuser:appuser /workspace/apps/web/public ./public/app
 
-# Copy source code
-COPY apps/api/src ./src
-
-# Copy built Next.js frontend
-COPY --from=frontend-builder /workspace/apps/web/.next ./public/.next
-COPY apps/web/public ./public/app 2>/dev/null || true
-
-# Expose ports
+USER appuser
 EXPOSE 8000
-
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
-
-# Start FastAPI server
 CMD ["uvicorn", "{{PYTHON_PACKAGE}}.interfaces.http.app:app", "--host", "0.0.0.0", "--port", "8000"]

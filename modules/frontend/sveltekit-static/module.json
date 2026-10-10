@@ -1,7 +1,7 @@
 {
   "name": "sveltekit-static",
   "category": "frontend",
-  "description": "SvelteKit with adapter-static for Tauri or CDN-hosted frontends. Prerendered, no server runtime.",
+  "description": "SvelteKit 3 with adapter-static for Tauri or CDN-hosted frontends. Prerendered, no server runtime.",
   "compatibleRuntimes": ["node", "rust"],
   "conflictsWith": ["nextjs", "sveltekit", "socketio-session", "boardgame-io-core"],
   "directories": [
@@ -10,7 +10,7 @@
   ],
   "requiredFiles": [
     "src/app.html",
-    "svelte.config.js",
+    "vite.config.ts",
     "package.json"
   ],
   "commands": [

@@ -5,14 +5,26 @@
   "compatibleRuntimes": ["node", "python"],
   "requiredFiles": [
     "Dockerfile",
+    ".dockerignore",
     "docker-compose.yml"
   ],
   "implies": ["nextjs", "fastapi-monorepo"],
+  "env": [
+    "POSTGRES_DB={{PROJECT_SLUG}}",
+    "POSTGRES_USER=app",
+    "POSTGRES_PASSWORD=change-me",
+    "DATABASE_URL=postgresql://app:change-me@db:5432/{{PROJECT_SLUG}}"
+  ],
   "rules": [
     {
       "level": "info",
       "when": {},
       "message": "Dockerfile uses multi-stage build: Node.js builds Next.js, Python runs FastAPI on port 8000. Next.js output available at /app/public/.next"
+    },
+    {
+      "level": "warning",
+      "when": {},
+      "message": "PostgreSQL 18 stores its volume at /var/lib/postgresql; migrate PostgreSQL 16 data before reusing an existing volume."
     }
   ]
 }

@@ -18,5 +18,6 @@ This site is a flat-file static site. There is no framework and no server runtim
 - If you add a `kontakt` page via a forms module, it lines up with the `Contact` nav entry
   in `content/site.md`. If no forms module is installed, remove that nav entry or add your
   own `content/kontakt.md`.
-- Dependencies are pinned for CommonJS `require()` (`marked@^4`, `gray-matter`). If you
-  switch `build.js` to ESM `import`, move to `marked@latest` and set `"type": "module"`.
+- `build.js` uses CommonJS-compatible entry points for `marked` and `yaml`. Keep the
+  front-matter parser on `yaml` rather than reintroducing legacy parsers with stale
+  transitive dependencies.

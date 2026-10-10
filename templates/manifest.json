@@ -17,6 +17,7 @@
     ".editorconfig",
     ".gitignore",
     ".env.example",
+    ".github/dependabot.yml",
     "docs/security-checklist.md",
     "docs/review-checklist.md"
   ],

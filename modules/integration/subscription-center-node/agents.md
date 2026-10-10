@@ -13,10 +13,10 @@ gemischt - kein manueller Schritt. Neue Pakete dort eintragen, nicht in der
 generierten `package.json`: ein erneutes Generieren wuerde die Handaenderung
 verwerfen. Danach `{{PACKAGE_MANAGER}} install`.
 
-- `openid-client` (v5) - Discovery, PKCE, Token-/id_token-Validierung
+- `openid-client` (v6) - Discovery, PKCE, Token-/id_token-Validierung
   (JWKS, ES256, aud, iss, nonce). Die v5-API (`Issuer.discover`,
   `client.authorizationUrl`, `client.callbackParams`, `client.callback`)
-  ist API-inkompatibel zu v6 - bei v5 bleiben.
+  ist API-inkompatibel zu v6 - v6 verwenden und nicht mit v5-Aufrufen mischen.
 - `express` / `express-session` - HTTP-Router und Session-Handling.
 
 ### Einbinden in die App

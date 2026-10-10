@@ -220,7 +220,7 @@ pub fn strip_spn(s: &str) -> String {
 /// A URL-safe random token of `n` bytes (base64url, no padding).
 pub(crate) fn random_token(n: usize) -> String {
     let mut buf = vec![0u8; n];
-    getrandom::getrandom(&mut buf).expect("OS RNG");
+    getrandom::fill(&mut buf).expect("OS RNG");
     URL_SAFE_NO_PAD.encode(buf)
 }
 

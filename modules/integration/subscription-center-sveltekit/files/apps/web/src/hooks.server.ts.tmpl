@@ -1,12 +1,12 @@
-import type { Handle } from "@sveltejs/kit";
-import { getConfig } from "$lib/server/config";
-import { SESSION_COOKIE, getSession, readSessionCookie } from "$lib/server/session";
+import type { Handle } from "@sveltejs/kit/hooks";
+import { getConfig } from "./lib/server/config";
+import { SESSION_COOKIE, getSession, readSessionCookie } from "./lib/server/session";
 
 /**
  * Resolve the current user from the signed session cookie into
  * `event.locals.user` on every request. Downstream `+page.server.ts` /
  * `+server.ts` handlers gate on `event.locals.user` (see the `requireLogin`
- * and `hasGroup` helpers in `$lib/server/config`).
+ * and `hasGroup` helpers in `src/lib/server/config.ts`).
  */
 export const handle: Handle = async ({ event, resolve }) => {
   const cfg = getConfig();
@@ -33,4 +33,4 @@ export const handle: Handle = async ({ event, resolve }) => {
 };
 
 // Re-exported so route handlers can import the guards alongside the hook.
-export { requireLogin, hasGroup } from "$lib/server/config";
+export { requireLogin, hasGroup } from "./lib/server/config";

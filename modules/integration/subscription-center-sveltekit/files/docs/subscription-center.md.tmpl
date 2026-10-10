@@ -58,7 +58,7 @@ Hinweise:
 - `SESSION_KILL_SECRET` muss identisch in subscriptionCenter und in der App
   hinterlegt sein.
 - `OPENID_ENABLED=false` umgeht den Login mit einem Dev-User (nur lokal!).
-- Secrets werden zur Laufzeit ueber `$env/dynamic/private` gelesen und landen
+- Secrets werden zur Laufzeit ueber `process.env` gelesen und landen
   nie im Client-Bundle.
 
 ## Endpunkte

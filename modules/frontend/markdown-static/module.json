@@ -15,8 +15,8 @@
   ],
   "npmDependencies": {
     "dependencies": {
-      "gray-matter": "^4.0.3",
-      "marked": "^4.3.0"
+      "marked": "^18.1.0",
+      "yaml": "^2.9.1"
     }
   },
   "directories": [
@@ -37,6 +37,6 @@
   ],
   "detect": {
     "files": ["build.js"],
-    "packageIndicators": ["gray-matter", "marked"]
+    "packageIndicators": ["marked", "yaml"]
   }
 }

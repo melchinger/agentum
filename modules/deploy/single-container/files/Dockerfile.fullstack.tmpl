@@ -1,36 +1,23 @@
 # Multi-stage build for fullstack monorepo (Next.js + FastAPI)
-# Stage 1: Build Next.js frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS frontend-builder
 WORKDIR /workspace/apps/web
-COPY apps/web/package*.json ./
-RUN npm ci
-COPY apps/web ./
+RUN chown -R node:node /workspace
+COPY --chown=node:node apps/web/package*.json ./
+USER node
+RUN npm install
+COPY --chown=node:node apps/web ./
 RUN npm run build
 
-# Stage 2: Build Python backend with frontend assets
-FROM python:3.12-slim
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 WORKDIR /app
-
-# Install Node runtime (for potential server-side needs)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl && rm -rf /var/lib/apt/lists/*
-
-# Copy root files
-COPY pyproject.toml .
-COPY package.json .
-
-# Copy FastAPI backend
+RUN useradd --create-home --uid 10001 appuser
 COPY apps/api ./apps/api
-
-# Copy built Next.js to public directory (if needed)
-COPY --from=frontend-builder /workspace/apps/web/.next ./public/.next
-COPY --from=frontend-builder /workspace/apps/web/public ./public
-
-# Setup Python dependencies
-RUN pip install --no-cache-dir -e ./apps/api
-
-# Expose ports
-EXPOSE 8000 3000
-
-# Start FastAPI (Next.js would be served separately or via nginx in production)
-CMD ["uvicorn", "apps.api.src.{{PYTHON_PACKAGE}}.interfaces.http.app:app", "--host", "0.0.0.0", "--port", "8000"]
+RUN python -m pip install --no-cache-dir ./apps/api \
+    && chown -R appuser:appuser /app
+COPY --from=frontend-builder --chown=appuser:appuser /workspace/apps/web/.next ./public/.next
+COPY --from=frontend-builder --chown=appuser:appuser /workspace/apps/web/public ./public/app
+USER appuser
+EXPOSE 8000
+CMD ["uvicorn", "{{PYTHON_PACKAGE}}.interfaces.http.app:app", "--host", "0.0.0.0", "--port", "8000"]

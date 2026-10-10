@@ -1,6 +1,6 @@
 import { redirect, type RequestHandler } from "@sveltejs/kit";
-import { dev } from "$app/environment";
-import { buildAuthRequest, OIDC_STATE_COOKIE } from "$lib/server/oidc";
+const dev = process.env.NODE_ENV !== "production";
+import { buildAuthRequest, OIDC_STATE_COOKIE } from "../../../lib/server/oidc";
 
 /**
  * GET /auth/login
