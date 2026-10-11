@@ -33,7 +33,8 @@
     "content/index.md",
     "assets/styles.css",
     "templates/layout.js",
-    "templates/page.js"
+    "templates/page.js",
+    "templates/contact-form-renderer.js"
   ],
   "commands": [
     "build: node build.js",

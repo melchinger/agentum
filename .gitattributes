@@ -1,0 +1,2 @@
+# Keep this source reviewable while replacing legacy literal NUL bytes.
+scripts/lib/npm-dependencies.js diff

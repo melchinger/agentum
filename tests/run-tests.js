@@ -291,6 +291,13 @@ runTest("reports conflicting npm version ranges", () => {
   assert.ok(errors[0].includes("openid-client"));
 });
 
+runTest("npm merge source uses textual collision-safe keys", () => {
+  const source = fs.readFileSync(path.join(repoRoot, "scripts", "lib", "npm-dependencies.js"));
+  assert.equal(source.includes(0), false);
+  assert.match(source.toString("utf8"), /JSON\.stringify\(\[target, field, name\]\)/);
+  assert.match(source.toString("utf8"), /JSON\.stringify\(\[scriptTarget, "scripts", name\]\)/);
+});
+
 runTest("npm merge preserves the fields the target already declares", () => {
   const merged = applyNpmDependencies(
     JSON.stringify({ name: "app", scripts: { test: "node --test" }, dependencies: { zod: "^3.0.0" } }),
@@ -459,9 +466,18 @@ runTest("static content forms are SCM-safe and render from front matter", () => 
       const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
       assert.equal(pkg.scripts.build, "node build.js");
       const contactPath = path.join(targetDir, "content", "kontakt.md");
+      const rendererPath = path.join(targetDir, "templates", "contact-form-renderer.js");
+      const formPath = path.join(targetDir, "templates", "contact-form.js");
+      assert.equal(fs.existsSync(rendererPath), true);
       if (!moduleName) {
         assert.equal(fs.existsSync(contactPath), false);
-        assert.equal(fs.existsSync(path.join(targetDir, "templates", "contact-form.js")), false);
+        assert.equal(fs.existsSync(formPath), false);
+        const renderPage = require(path.join(targetDir, "templates", "page.js"));
+        assert.throws(
+          () => renderPage({}, { title: "Contact", body_html: "", form: { endpoint: "/send" } }),
+          /declares `form` front matter.*templates\/contact-form\.js is missing/
+        );
+        assert.doesNotThrow(() => renderPage({}, { title: "No form", body_html: "" }));
         return;
       }
 
@@ -470,7 +486,10 @@ runTest("static content forms are SCM-safe and render from front matter", () => 
       assert.doesNotMatch(body, /<\/?[a-z][^>]*>/i, `${moduleName} contact body contains raw HTML`);
       assert.match(contact, /\nform:\r?\n/);
 
-      const renderForm = require(path.join(targetDir, "templates", "contact-form.js"));
+      const wrapperSource = fs.readFileSync(formPath, "utf8");
+      assert.match(wrapperSource, /module\.exports = require\("\.\/contact-form-renderer\.js"\);/);
+      const renderForm = require(formPath);
+      assert.equal(renderForm, require(rendererPath));
       const config = moduleName === "phpmailer-endpoint"
         ? { transport: "formdata", endpoint: "/mail/send.php", fields: [{ name: "email", type: "email", label: "Email" }] }
         : { transport: "json", endpoint: "https://forms.example.test/send", fields: [{ name: "email", type: "email", label: "Email" }] };
@@ -479,6 +498,29 @@ runTest("static content forms are SCM-safe and render from front matter", () => 
       const renderPage = require(path.join(targetDir, "templates", "page.js"));
       assert.match(renderPage({}, { title: "Contact", body_html: "", form: config }), /<form id="contactForm"/);
       assert.match(html, /<input[^>]+name="email"/);
+      const validNames = renderForm({
+        endpoint: "/send",
+        fields: ["first-name", "field_1", "A9"].map((name) => ({ name }))
+      });
+      for (const name of ["first-name", "field_1", "A9"]) {
+        assert.match(validNames, new RegExp(`name="${name}"`));
+      }
+      for (const invalidField of [
+        undefined,
+        null,
+        "email",
+        {},
+        { name: "" },
+        { name: "two words" },
+        { name: "email.address" },
+        { name: "<email>" },
+        { name: 42 }
+      ]) {
+        assert.throws(
+          () => renderForm({ endpoint: "/send", fields: [invalidField] }),
+          /form\.fields\[0\](?: must be an object|\.name must be a non-empty string|\.name must contain only)/
+        );
+      }
       if (moduleName === "phpmailer-endpoint") assert.match(html, /action="\/mail\/send\.php" method="post"/);
       else assert.match(html, /data-action="https:\/\/forms\.example\.test\/send"/);
 

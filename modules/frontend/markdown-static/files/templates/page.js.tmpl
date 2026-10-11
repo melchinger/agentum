@@ -27,6 +27,13 @@ function heroHtml(p) {
 
 module.exports = function page(site, p) {
   const parts = [heroHtml(p)];
+  const hasForm = Object.prototype.hasOwnProperty.call(p, "form");
+
+  if (hasForm && !contactForm) {
+    throw new Error(
+      "Page declares `form` front matter, but templates/contact-form.js is missing. Install a compatible form module."
+    );
+  }
 
   if (p.body_html && p.body_html.trim()) {
     parts.push(`<section class="section">
@@ -38,7 +45,7 @@ ${p.body_html}
 </section>`);
   }
 
-  if (p.form && contactForm) {
+  if (hasForm) {
     parts.push(`<section class="section">
   <div class="container">
 ${contactForm(p.form)}
