@@ -5,10 +5,11 @@
   "compatibleRuntimes": ["node"],
   "conflictsWith": ["static-mail-gateway", "headless-wp-forms"],
   "requiresModules": ["markdown-static"],
-  "directories": ["content", "assets/js", "mail"],
+  "directories": ["content", "assets/js", "templates", "mail"],
   "requiredFiles": [
     "content/kontakt.md",
     "assets/js/contact.js",
+    "templates/contact-form.js",
     "mail/send.php",
     "mail/config.sample.inc.php",
     "mail/composer.json",

@@ -1,7 +1,8 @@
 ### Module: PHPMailer Contact Endpoint
 
-Self-hosted contact form. The static form (`content/kontakt.md`) posts to `mail/send.php`,
-which sends mail over SMTP with PHPMailer. No third-party form service.
+Self-hosted contact form. `content/kontakt.md` contains only SCM-safe Markdown and YAML
+form configuration; `templates/contact-form.js` renders a form that posts to
+`mail/send.php`, which sends mail over SMTP with PHPMailer. No third-party form service.
 
 - **Requires a PHP host.** The static `dist/` is served as usual; `mail/` must be reachable
   as `/mail/` on a PHP-capable server (PHP 8.1+). If your host is static-only, use

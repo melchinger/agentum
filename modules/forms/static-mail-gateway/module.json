@@ -5,9 +5,10 @@
   "compatibleRuntimes": ["node"],
   "conflictsWith": ["phpmailer-endpoint", "headless-wp-forms"],
   "requiresModules": ["markdown-static"],
-  "directories": ["content", "assets/js"],
+  "directories": ["content", "assets/js", "templates"],
   "requiredFiles": [
     "content/kontakt.md",
-    "assets/js/contact.js"
+    "assets/js/contact.js",
+    "templates/contact-form.js"
   ]
 }

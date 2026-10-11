@@ -16,7 +16,7 @@
     {
       "level": "info",
       "when": {},
-      "message": "Pages are content/*.md (front matter + Markdown), templates are plain JS in templates/, and `node build.js` renders dist/. Edit Markdown, not the templates."
+      "message": "Pages are SCM-compatible content/*.md (front matter + Markdown; no raw HTML or task lists), templates are plain JS in templates/, and `npm run build` renders dist/. SCM onboarding: contentDir=content, buildCommand=npm run build, buildDir=dist."
     },
     {
       "level": "warning",
