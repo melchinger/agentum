@@ -7,14 +7,17 @@ This site is a flat-file static site. There is no framework and no server runtim
   it holds site-wide settings (nav, footer, contact) and is not rendered as a page.
 - **`slug` decides the URL.** `slug: about` → `/about/`; `slug: ""` → `/`. A new page is
   a new `.md` file; nothing else to register.
-- **Templates are plain JS.** `templates/layout.js` (page shell) and `templates/page.js`
-  (hero + body) are `require()`d by `build.js`. Keep them free of page content — content
-  belongs in Markdown.
-- **Raw HTML in a Markdown body is passed through.** That is how a contact form or an
-  embed lands on a page. Do not add page-specific markup to the templates.
-- **Build:** `node build.js` renders `content/` into `dist/` and copies `assets/` verbatim.
+- **SCM-safe content only.** Keep `content/*.md` compatible with the SCM editor: YAML
+  front matter plus ordinary Markdown, without raw HTML or task lists. Quote YAML 1.1-like
+  string values such as `on`, `off`, `yes`, and `no` so an editor cannot change their type.
+- **Templates are plain JS.** `templates/layout.js` and `templates/page.js` own structure.
+  Form modules add `templates/contact-form.js`; a page opts in with a `form:` mapping in
+  front matter. Never put form HTML in Markdown.
+- **Build:** `npm run build` (or `node build.js`) renders `content/` into `dist/` and copies `assets/` verbatim.
   `node --watch build.js` rebuilds on change. Serve `dist/` as static files. `dist/` is
   generated — never edit it and never commit it.
+- SCM onboarding uses `contentDir=content`, `buildCommand=npm run build`, and
+  `buildDir=dist`. SCM edits existing content; adding pages or assets remains a Git task.
 - If you add a `kontakt` page via a forms module, it lines up with the `Contact` nav entry
   in `content/site.md`. If no forms module is installed, remove that nav entry or add your
   own `content/kontakt.md`.

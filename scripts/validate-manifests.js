@@ -225,6 +225,16 @@ function validateNpmDependencies(contribution, label, errors) {
   }
 }
 
+function validateNpmScripts(scripts, label, errors) {
+  assertCondition(isPlainObject(scripts), `${label} must be an object`, errors);
+  if (!isPlainObject(scripts)) return;
+  assertCondition(Object.keys(scripts).length > 0, `${label} must not be empty`, errors);
+  for (const [name, command] of Object.entries(scripts)) {
+    assertCondition(/^[a-zA-Z0-9:_-]+$/.test(name), `${label}: "${name}" is not a valid script name`, errors);
+    assertCondition(isNonEmptyString(command), `${label}.${name} must be a non-empty command`, errors);
+  }
+}
+
 function validateDetect(detect, label, errors) {
   assertCondition(isPlainObject(detect), `${label} must be an object`, errors);
   if (!isPlainObject(detect)) {
@@ -294,6 +304,14 @@ function validateModuleManifest(manifest, filePath) {
     assertCondition(
       (manifest.compatibleRuntimes || []).includes("node"),
       `${filePath}: npmDependencies requires the module to be compatible with the node runtime`,
+      errors
+    );
+  }
+  if ("npmScripts" in manifest) {
+    validateNpmScripts(manifest.npmScripts, `${filePath}: npmScripts`, errors);
+    assertCondition(
+      (manifest.compatibleRuntimes || []).includes("node"),
+      `${filePath}: npmScripts requires the module to be compatible with the node runtime`,
       errors
     );
   }

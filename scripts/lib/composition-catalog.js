@@ -261,7 +261,8 @@ function resolveComposition(repoRoot, options = {}) {
   errors.push(...mergeCargoDependencies(collectCargoContributors(runtimeEntities, modules)).errors);
   errors.push(...mergeNpmDependencies(modules.map((entry) => ({
     label: `module:${entry.manifest.name}`,
-    npmDependencies: entry.manifest.npmDependencies
+    npmDependencies: entry.manifest.npmDependencies,
+    npmScripts: entry.manifest.npmScripts
   }))).errors);
 
   const ruleContext = {
@@ -476,7 +477,8 @@ function collectCompositionOperations(repoRoot, options) {
   // manifest another module is about to write in this same run.
   const { byTarget: npmByTarget } = mergeNpmDependencies(composition.modules.map((entry) => ({
     label: `module:${entry.manifest.name}`,
-    npmDependencies: entry.manifest.npmDependencies
+    npmDependencies: entry.manifest.npmDependencies,
+    npmScripts: entry.manifest.npmScripts
   })));
   for (const [target, bucket] of npmByTarget.entries()) {
     const absoluteTarget = path.join(options.targetDir, ...target.split("/"));

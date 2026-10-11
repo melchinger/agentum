@@ -68,6 +68,17 @@
     "npmDependencies": {
       "$ref": "https://agentum.dev/schemas/common-npm-dependencies.schema.json"
     },
+    "npmScripts": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "propertyNames": {
+        "pattern": "^[a-zA-Z0-9:_-]+$"
+      }
+    },
     "detect": {
       "$ref": "https://agentum.dev/schemas/common-detect.schema.json"
     },

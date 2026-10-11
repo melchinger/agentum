@@ -4,8 +4,12 @@ A flat-file website whose content is edited as Markdown. `content/*.md` (front m
 Markdown) builds to static HTML in `dist/` via `node build.js` — no framework, no runtime
 server for the pages themselves. Deploy `dist/` as static files.
 
-- **Content is the interface.** Non-developers edit `content/*.md` and `assets/`. Keep the
-  JS templates in `templates/` structural; never move page copy into them.
+- **Content is the interface.** SCM may edit existing `content/*.md`: use YAML front matter
+  and ordinary Markdown only, without raw HTML or task lists. Quote YAML 1.1-like strings
+  (`on`, `off`, `yes`, `no`). Form configuration belongs under `form:` in front matter;
+  `templates/contact-form.js` owns its markup. New pages and assets remain a Git task.
+- **SCM onboarding:** set `contentDir=content`, `buildCommand=npm run build`, and
+  `buildDir=dist`.
 - **Contact/mail is a pluggable strategy** (exactly one, they are mutually exclusive):
   - `static-mail-gateway` — form posts to an external service (Formspree/Web3Forms/Basin/
     self-hosted). Works on static-only hosts. Submissions reach a third party — note it in

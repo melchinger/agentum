@@ -1,6 +1,8 @@
-// Generic page template: optional hero (from front matter) followed by the
-// rendered Markdown body. Raw HTML in the Markdown body is passed through, so
-// content pages can embed things like a contact form without touching this file.
+// Generic page template: optional hero, rendered Markdown, and an optional
+// data-driven form supplied by an exclusive forms module.
+
+const fs = require("node:fs");
+const path = require("node:path");
 
 const esc = (value = "") =>
   String(value)
@@ -9,15 +11,16 @@ const esc = (value = "") =>
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 
-const raw = (value = "") => String(value);
+const contactFormPath = path.join(__dirname, "contact-form.js");
+const contactForm = fs.existsSync(contactFormPath) ? require(contactFormPath) : null;
 
 function heroHtml(p) {
   if (!p.hero_title && !p.title) return "";
   return `<section class="hero">
   <div class="container">
     ${p.eyebrow ? `<span class="eyebrow">${esc(p.eyebrow)}</span>` : ""}
-    <h1>${raw(p.hero_title || p.title)}</h1>
-    ${p.hero_sub ? `<p class="lede">${raw(p.hero_sub)}</p>` : ""}
+    <h1>${esc(p.hero_title || p.title)}</h1>
+    ${p.hero_sub ? `<p class="lede">${esc(p.hero_sub)}</p>` : ""}
   </div>
 </section>`;
 }
@@ -31,6 +34,14 @@ module.exports = function page(site, p) {
     <div class="prose">
 ${p.body_html}
     </div>
+  </div>
+</section>`);
+  }
+
+  if (p.form && contactForm) {
+    parts.push(`<section class="section">
+  <div class="container">
+${contactForm(p.form)}
   </div>
 </section>`);
   }

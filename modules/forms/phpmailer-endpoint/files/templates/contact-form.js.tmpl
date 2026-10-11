@@ -1,0 +1,99 @@
+// Shared data-driven contact-form renderer. All text and transport settings come
+// from content front matter; values are escaped before entering HTML.
+const esc = (value = "") => String(value)
+  .replaceAll("&", "&amp;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;");
+
+function safeUrl(value, field, required = false) {
+  if (value == null) {
+    if (required) throw new Error(`${field} is required.`);
+    return "";
+  }
+
+  const raw = String(value);
+  if (raw.trim() === "") {
+    if (required) throw new Error(`${field} is required.`);
+    return "";
+  }
+  if (/[\u0000-\u001f\u007f]/.test(raw) || raw.includes("\\") || raw.startsWith("//")) {
+    throw new Error(`${field} must be a safe HTTP(S) or relative URL.`);
+  }
+
+  const url = raw.trim();
+  if (url.startsWith("//")) {
+    throw new Error(`${field} must be a safe HTTP(S) or relative URL.`);
+  }
+
+  const hasScheme = /^[a-z][a-z\d+.-]*:/i.test(url);
+  try {
+    const parsed = hasScheme ? new URL(url) : new URL(url, "https://relative.invalid/");
+    if (hasScheme && parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("unsupported protocol");
+    }
+  } catch {
+    throw new Error(`${field} must be a valid HTTP(S) or relative URL.`);
+  }
+  return url;
+}
+
+function fieldHtml(field, index) {
+  const types = new Set(["text", "email", "checkbox"]);
+  const type = types.has(field.type) ? field.type : "text";
+  const name = String(field.name || `field_${index}`).replace(/[^a-zA-Z0-9_-]/g, "");
+  const id = `cf-${name || index}`;
+  const required = field.required ? " required" : "";
+  const max = Number.isInteger(field.maxlength) && field.maxlength > 0 ? ` maxlength="${field.maxlength}"` : "";
+  const autocomplete = field.autocomplete ? ` autocomplete="${esc(field.autocomplete)}"` : "";
+  const value = field.value == null ? "" : ` value="${esc(field.value)}"`;
+  if (type === "checkbox") {
+    return `  <div class="field field--check">
+    <input id="${id}" name="${esc(name)}" type="checkbox"${required}${value}>
+    <label for="${id}">${esc(field.label || "I agree")}</label>
+  </div>`;
+  }
+  const control = field.multiline
+    ? `<textarea id="${id}" name="${esc(name)}"${required}${max}${autocomplete}></textarea>`
+    : `<input id="${id}" name="${esc(name)}" type="${type}"${required}${max}${autocomplete}>`;
+  return `  <div class="field">
+    <label for="${id}">${esc(field.label || name)}</label>
+    ${control}
+  </div>`;
+}
+
+module.exports = function contactForm(form = {}) {
+  const labels = form.labels || {};
+  const endpoint = safeUrl(form.endpoint, "form.endpoint", true);
+  const transport = form.transport === "formdata" ? "formdata" : "json";
+  const action = transport === "formdata"
+    ? ` action="${esc(endpoint)}" method="post"`
+    : ` data-action="${esc(endpoint)}"`;
+  const gateway = form.recipient ? ` data-to="${esc(form.recipient)}"` : "";
+  const fromName = form.from_name ? ` data-from-name="${esc(form.from_name)}"` : "";
+  const fields = Array.isArray(form.fields) ? form.fields : [];
+  const privacyUrl = safeUrl(form.privacy_url, "form.privacy_url");
+  const privacyText = esc(labels.privacy || "I have read the privacy notice.");
+  const privacyLabel = privacyUrl
+    ? `<a href="${esc(privacyUrl)}">${privacyText}</a>`
+    : privacyText;
+
+  return `<form id="contactForm" class="contact-form"${action}${gateway}${fromName}
+      data-sending="${esc(labels.sending || "Sending…")}" data-network-error="${esc(labels.network_error || "Sending failed — please try again later.")}">
+${fields.map(fieldHtml).join("\n")}
+  <div class="field field--check">
+    <input id="cf-privacy" name="${esc(form.privacy_name || "privacy")}" type="checkbox" required value="${esc(form.privacy_value || "1")}">
+    <label for="cf-privacy">${privacyLabel}</label>
+  </div>
+  <div class="hp" aria-hidden="true">
+    <label>${esc(labels.honeypot || "Leave this field empty")}<input name="website" type="text" tabindex="-1" autocomplete="off"></label>
+  </div>
+  <p id="formStatus" class="form-status" role="alert" hidden></p>
+  <button type="submit" class="btn">${esc(labels.submit || "Send message")}</button>
+  <p class="form-hint">${esc(labels.hint || "Your details are treated confidentially.")}</p>
+</form>
+<div id="contactThanks" class="form-thanks" hidden>
+  <strong>${esc(labels.success_title || "Thank you!")}</strong> ${esc(labels.success || "Your message has been sent.")}
+</div>
+<script src="/js/contact.js" defer></script>`;
+};
