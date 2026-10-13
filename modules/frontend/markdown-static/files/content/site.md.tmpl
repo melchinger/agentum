@@ -1,9 +1,13 @@
 ---
 meta:
-  site_name: {{PROJECT_NAME}}
+  site_name: "{{PROJECT_NAME}}"
+  site_title: "{{PROJECT_NAME}}"
   lang: en
   base_url: https://example.com/
   description: A static, Markdown-driven website.
+  robots: "index, follow, max-image-preview:large"
+  og_image: ""
+  og_image_alt: "{{PROJECT_NAME}}"
 nav:
   - slug: ""
     label: Home
@@ -13,4 +17,6 @@ contact:
   email: hello@example.com
 footer:
   text: Built as static HTML from Markdown.
+  privacy_url: /privacy/
+  privacy_label: Privacy
 ---

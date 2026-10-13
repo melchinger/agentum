@@ -22,3 +22,5 @@ server for the pages themselves. Deploy `dist/` as static files.
   with a `mailto:` link, or add your own `content/kontakt.md`, so it does not 404.
 - Privacy matters here: external form gateways, embedded booking widgets and web fonts are
   all third-party data flows. Gate them and document them in the privacy page.
+- The profile includes security, privacy, performance, CI, and static SEO baselines. Keep the
+  generated deployment headers, discovery files, and form safeguards intact when publishing.

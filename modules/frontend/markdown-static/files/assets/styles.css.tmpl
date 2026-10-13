@@ -13,6 +13,13 @@
 
 * { box-sizing: border-box; }
 
+img { max-width: 100%; height: auto; }
+
+:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
+
 body {
   margin: 0;
   color: var(--ink);
@@ -30,6 +37,11 @@ a { color: var(--accent); }
 .main-nav ul { display: flex; gap: 18px; list-style: none; margin: 0; padding: 0; }
 .main-nav a { text-decoration: none; color: var(--muted); }
 .main-nav a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 700px) {
+  .site-header .container { align-items: flex-start; flex-direction: column; }
+  .main-nav ul { flex-wrap: wrap; gap: 10px 16px; }
+}
 
 .hero { padding: 56px 0 24px; }
 .hero .eyebrow { display: inline-block; color: var(--accent); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; font-size: .8rem; }

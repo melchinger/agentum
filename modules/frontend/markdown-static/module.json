@@ -31,10 +31,14 @@
     "build.js",
     "content/site.md",
     "content/index.md",
+    "content/privacy.md",
     "assets/styles.css",
+    "assets/_headers",
+    "assets/.htaccess",
     "templates/layout.js",
     "templates/page.js",
-    "templates/contact-form-renderer.js"
+    "templates/contact-form-renderer.js",
+    "docs/static-deployment.md"
   ],
   "commands": [
     "build: node build.js",

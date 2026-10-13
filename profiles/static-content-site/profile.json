@@ -4,7 +4,7 @@
   "recommendedRuntime": "node",
   "defaultModules": ["markdown-static"],
   "recommendedModules": ["static-mail-gateway", "phpmailer-endpoint", "headless-wp-forms"],
-  "requiredPolicies": ["security-baseline", "ci", "privacy-baseline"],
+  "requiredPolicies": ["security-baseline", "ci", "privacy-baseline", "performance-baseline", "seo-baseline"],
   "questions": [
     {
       "id": "mail_strategy",

@@ -1,0 +1,24 @@
+# Static deployment baseline
+
+`npm run build` creates `dist/` with the rendered pages plus these generated operational files:
+
+- a starter `privacy/` page; replace its legal placeholders before publishing;
+- `robots.txt` and `sitemap.xml`, derived from `content/*.md` and `meta.base_url`;
+- `.well-known/security.txt` when `site.md` contains a valid `contact.email`;
+- `_headers` for Netlify, Cloudflare Pages and compatible static hosts;
+- `.htaccess` for Apache hosts.
+
+The header files configure a restrictive Content Security Policy, HSTS, referrer and
+permissions policies, clickjacking protection, MIME sniffing protection, and caching for
+static assets. Do not delete them from the deployed `dist/` directory. If the hosting
+provider uses Caddy, nginx, a CDN or another server, translate the same headers into that
+provider's configuration and verify them over HTTPS in production.
+
+The generated CSP intentionally permits outbound HTTPS connections only for an explicitly
+configured form gateway. Keep all fonts, scripts, styles and ordinary images local. If a
+site needs a third-party integration, document it in the privacy notice and update the
+CSP deliberately rather than weakening it globally.
+
+Set a real `meta.base_url`, site-specific `meta.site_title`, and description before
+publishing. Pages can set `noindex: true` or `sitemap: false` in front matter when they
+must not be discoverable.

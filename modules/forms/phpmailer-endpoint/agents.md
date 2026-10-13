@@ -19,3 +19,5 @@ form configuration; `templates/contact-form.js` renders a form that posts to
   answers JSON `{ ok, message }`. `assets/js/contact.js` submits over fetch and shows the
   thank-you block; the form also works as a plain POST without JavaScript.
 - Do not weaken the CR/LF stripping or the honeypot check — both are anti-abuse measures.
+- Keep the generated form's POST fallback. Never use GET for contact data: names, addresses,
+  subjects, and messages must not be written into URLs or referrer/server logs.

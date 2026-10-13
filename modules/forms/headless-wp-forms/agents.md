@@ -15,3 +15,6 @@ WordPress handles delivery, spam filtering and entry storage.
   `ALLOWED_ORIGINS`. If your proxy requires the key, add a same-origin forwarder that injects
   it server-side and point `data-action` there (see the doc).
 - Keep spam protection and rate limiting on the WordPress side — the endpoint is public.
+- Treat every browser field as untrusted, including field names and consent values. Validate the
+  allowed form ID and origin server-side, enforce the privacy field server-side, and never use
+  GET for submissions because it exposes personal data in URLs.

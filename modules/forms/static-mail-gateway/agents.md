@@ -16,5 +16,12 @@ ship in this repo. This mirrors the cardcoaching/landing lead flow.
   JavaScript — if you must support no-JS, fall back to a `mailto:` link.
 - **Privacy:** submissions leave the browser for the gateway service. Say so in the form
   hint and the privacy page; prefer an EU-hosted gateway if that matters.
+- **Server trust boundary:** `to`, `subject`, `fromName`, and every field are attacker-controlled
+  because the site is public JavaScript. The gateway must ignore or allow-list the recipient,
+  validate lengths and e-mail syntax, strip CR/LF from header-bound values, rate-limit requests,
+  enforce the allowed origins, and apply the honeypot server-side. Never expose a secret or
+  turn this endpoint into an open mail relay.
+- The generated form uses `POST` for its no-JavaScript fallback and includes a `mailto:` fallback;
+  never change it back to a GET form because names, addresses, and messages would enter URLs/logs.
 - If your host runs PHP and you'd rather not depend on an external service, use
   `phpmailer-endpoint` instead.

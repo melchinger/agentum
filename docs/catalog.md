@@ -88,4 +88,5 @@ node scripts/init-repo.js explain-stack --profile <name>
 | `privacy-baseline` | Zwingende DSGVO-Vorgaben zur Vermeidung von Drittanbieter-Datentransfers (Fonts, CDNs, Tracking). |
 | `realtime-authority-baseline` | Server-autoritative Echtzeit-Sessions: vertraute Rollen aus Tokens, validierte Events, serverseitiger Zufall, Reconnect-Resync. |
 | `security-baseline` | Applies baseline secure defaults for configuration and review. |
+| `seo-baseline` | Static-site SEO defaults: crawl discovery, canonical metadata, structured data, accessible headings and social previews. |
 | `tdd-baseline` | Zwingt Agenten zur Test-First-Methodik (Red-Green-Refactor) und definiert Coverage-Standards. |
