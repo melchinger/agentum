@@ -154,7 +154,7 @@ function safeSlug(value, file) {
   const raw = String(value ?? "").trim();
   const slug = raw.replace(/^\/+|\/+$/g, "");
   if (!slug) return "";
-  if (path.isAbsolute(raw) || raw.includes("\\") || raw.includes("\0")) {
+  if (path.isAbsolute(slug) || raw.includes("\\") || raw.includes("\0")) {
     throw new Error(`${file}: unsafe slug "${raw}"`);
   }
   const segments = slug.split("/");

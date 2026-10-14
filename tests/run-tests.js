@@ -460,6 +460,8 @@ runTest("composes a static content site with a chosen mail strategy", () => {
     assert.match(buildScript, /--strict-content/);
     assert.match(buildScript, /content-schema\.json/);
     assert.match(buildScript, /duplicate slug/);
+    assert.match(buildScript, /path\.isAbsolute\(slug\)/);
+    assert.doesNotMatch(buildScript, /path\.isAbsolute\(raw\)/);
     assert.equal(buildScript.includes("source.match(/^---\\r?\\n"), true);
     assert.doesNotMatch(buildScript, /source\.match\([^\n]*\/m\)/);
   });
