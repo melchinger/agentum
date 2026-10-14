@@ -1,7 +1,7 @@
 {
   "name": "markdown-static",
   "category": "frontend",
-  "description": "Zero-framework static site generator. Content lives in content/*.md (front matter + Markdown), templates are plain JS functions, and `node build.js` renders static HTML into dist/. Editable by non-developers, deployable as flat files.",
+  "description": "Zero-framework static site generator. Content lives in content/*.md (front matter + Markdown), the SCM-facing contract is documented in content-schema.json, templates are plain JS functions, and `node build.js` renders static HTML into dist/. Editable by non-developers, deployable as flat files.",
   "compatibleRuntimes": ["node"],
   "conflictsWith": [
     "nextjs",
@@ -20,7 +20,8 @@
     }
   },
   "npmScripts": {
-    "build": "node build.js"
+    "build": "node build.js",
+    "validate:content": "node build.js --strict-content"
   },
   "directories": [
     "content",
@@ -29,6 +30,7 @@
   ],
   "requiredFiles": [
     "build.js",
+    "content-schema.json",
     "content/site.md",
     "content/index.md",
     "content/privacy.md",

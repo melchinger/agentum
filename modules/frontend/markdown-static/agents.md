@@ -5,15 +5,22 @@ This site is a flat-file static site. There is no framework and no server runtim
 - **Content is data.** Every page is a `content/*.md` file: YAML front matter (title,
   slug, hero fields, description) plus a Markdown body. `content/site.md` is special —
   it holds site-wide settings (nav, footer, contact) and is not rendered as a page.
+  `content-schema.json` is the machine-readable, SCM-facing contract for these fields.
+  Known fields are type-checked; unknown fields remain allowed for backward-compatible
+  extensions and optional modules.
 - **`slug` decides the URL.** `slug: about` → `/about/`; `slug: ""` → `/`. A new page is
   a new `.md` file; nothing else to register.
 - **SCM-safe content only.** Keep `content/*.md` compatible with the SCM editor: YAML
   front matter plus ordinary Markdown, without raw HTML or task lists. Quote YAML 1.1-like
   string values such as `on`, `off`, `yes`, and `no` so an editor cannot change their type.
+  `npm run build` remains compatibility-first and warns about contract violations;
+  `npm run validate:content` enables strict validation and fails on them. This lets
+  existing repositories migrate without making their first normal build fail.
 - **Templates are plain JS.** `templates/layout.js` and `templates/page.js` own structure.
   Form modules add `templates/contact-form.js`; a page opts in with a `form:` mapping in
   front matter. Never put form HTML in Markdown.
-- **Build:** `npm run build` (or `node build.js`) renders `content/` into `dist/` and copies `assets/` verbatim.
+- **Build:** `npm run build` (or `node build.js`) renders `content/` into `dist/` and copies `assets/` verbatim. Use
+  `npm run validate:content` in CI when the repository has migrated to the strict content contract.
   `node --watch build.js` rebuilds on change. Serve `dist/` as static files. `dist/` is
   generated — never edit it and never commit it. The build also generates `robots.txt`,
   `sitemap.xml`, `.well-known/security.txt` (when a valid contact e-mail exists), and the

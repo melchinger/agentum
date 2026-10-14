@@ -16,7 +16,7 @@
     {
       "level": "info",
       "when": {},
-      "message": "Pages are SCM-compatible content/*.md (front matter + Markdown; no raw HTML or task lists), templates are plain JS in templates/, and `npm run build` renders dist/. SCM onboarding: contentDir=content, buildCommand=npm run build, buildDir=dist."
+      "message": "Pages are SCM-compatible content/*.md (front matter + Markdown; no raw HTML or task lists), templates are plain JS in templates/, and `npm run build` renders dist/. `content-schema.json` documents the type-checked frontmatter contract; `npm run build` warns compatibly and `npm run validate:content` is the strict gate. SCM onboarding: contentDir=content, buildCommand=npm run build, buildDir=dist."
     },
     {
       "level": "warning",

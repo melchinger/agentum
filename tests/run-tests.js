@@ -426,6 +426,7 @@ runTest("composes a static content site with a chosen mail strategy", () => {
     assert.equal(fs.existsSync(path.join(targetDir, "content", "site.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "content", "index.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "content", "privacy.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "content-schema.json")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "templates", "layout.js")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "assets", "_headers")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "assets", ".htaccess")), true);
@@ -444,6 +445,7 @@ runTest("composes a static content site with a chosen mail strategy", () => {
     assert.equal(pkg.dependencies.marked, "^18.1.0");
     assert.equal(pkg.dependencies.yaml, "^2.9.1");
     assert.equal(pkg.scripts.build, "node build.js");
+    assert.equal(pkg.scripts["validate:content"], "node build.js --strict-content");
     assert.equal(pkg.scripts.test, "node --test");
 
     const buildScript = fs.readFileSync(path.join(targetDir, "build.js"), "utf8");
@@ -455,6 +457,9 @@ runTest("composes a static content site with a chosen mail strategy", () => {
     assert.match(buildScript, /markdownRenderer\.image/);
     assert.match(buildScript, /availableSlugs/);
     assert.match(buildScript, /writeSecurityHeaders/);
+    assert.match(buildScript, /--strict-content/);
+    assert.match(buildScript, /content-schema\.json/);
+    assert.match(buildScript, /duplicate slug/);
     assert.equal(buildScript.includes("source.match(/^---\\r?\\n"), true);
     assert.doesNotMatch(buildScript, /source\.match\([^\n]*\/m\)/);
   });

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentum.dev/contracts/static-content-site.schema.json",
+  "type": "object",
+  "additionalProperties": true,
+  "x-agentum": {
+    "contractVersion": 1,
+    "contentDir": "content",
+    "siteFile": "site.md",
+    "pagePattern": "**/*.md",
+    "validation": {
+      "defaultMode": "compatible",
+      "strictMode": "--strict-content",
+      "unknownFields": "allow",
+      "unsupportedMarkdown": "warn-by-default"
+    }
+  },
+  "$defs": {
+    "site": {
+      "type": "object",
+      "required": ["meta"],
+      "properties": {
+        "meta": { "type": "object" },
+        "nav": { "type": "array", "items": { "type": "object" } },
+        "contact": { "type": "object" },
+        "footer": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "page": {
+      "type": "object",
+      "required": ["slug", "title"],
+      "properties": {
+        "slug": { "type": "string", "pattern": "^(|[a-z0-9][a-z0-9/_-]*)$" },
+        "title": { "type": "string", "minLength": 1 },
+        "hero_title": { "type": "string" },
+        "hero_sub": { "type": "string" },
+        "eyebrow": { "type": "string" },
+        "description": { "type": "string" },
+        "noindex": { "type": "boolean" },
+        "sitemap": { "type": "boolean" },
+        "og_image": { "type": "string" },
+        "form": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  }
+}
