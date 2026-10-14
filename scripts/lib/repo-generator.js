@@ -13,7 +13,7 @@ const {
   toPythonPackage
 } = require("./template-utils");
 const { compositionDoctor } = require("./composition-catalog");
-const { buildCiCommands, nodeSetupStep } = require("./ci");
+const { buildCiCommands, nodeSetupStep, renderDependabot } = require("./ci");
 
 function loadStacksManifest(repoRoot) {
   return readJson(path.join(repoRoot, "stacks", "manifest.json"));
@@ -211,6 +211,13 @@ function collectOperations(repoRoot, options) {
         CI_SETUP_COMMAND: ciCommands.setup,
         CI_TEST_COMMAND: ciCommands.test
       })
+    });
+  }
+
+  const dependabotOperation = operations.find((entry) => entry.type === "write" && entry.target === path.join(options.targetDir, ".github", "dependabot.yml"));
+  if (dependabotOperation) {
+    dependabotOperation.content = renderDependabot(operations, options.targetDir, {
+      includeGitHubActions: Boolean(options.withCi)
     });
   }
 

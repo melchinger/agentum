@@ -84,7 +84,8 @@ if ($message === '') {
 if (!$privacy) {
     $errors[] = 'Please accept the privacy notice.';
 }
-if (mb_strlen($name) > 120 || mb_strlen($email) > 160 || mb_strlen($message) > 5000) {
+$stringLength = static fn(string $value): int => function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
+if ($stringLength($name) > 120 || $stringLength($email) > 160 || $stringLength($message) > 5000) {
     $errors[] = 'Input too long.';
 }
 if ($errors) {

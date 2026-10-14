@@ -35,6 +35,7 @@ const escapeHtml = (value = "") => String(value)
 // Markdown images are content assets, not layout decoration. Add the safe
 // browser hints automatically; authors still provide the alt text in Markdown.
 const markdownRenderer = new marked.Renderer();
+markdownRenderer.html = ({ text }) => escapeHtml(text || "");
 markdownRenderer.image = ({ href, title, text }) => {
   const src = escapeHtml(href || "");
   const alt = escapeHtml(text || "");
@@ -108,11 +109,13 @@ function validateSchemaValue(value, schema, pathLabel, errors, { required = true
 }
 
 function unsupportedMarkdownFeatures(body) {
-  return marked.lexer(body).some((token) => {
-    if (token.type === "html" || token.type === "checkbox") return true;
-    if (token.type === "list" && token.items?.some((item) => item.task === true)) return true;
-    return false;
-  });
+  const visit = (value) => {
+    if (Array.isArray(value)) return value.some(visit);
+    if (!value || typeof value !== "object") return false;
+    if (value.type === "html" || value.type === "checkbox" || value.task === true) return true;
+    return Object.values(value).some(visit);
+  };
+  return visit(marked.lexer(body));
 }
 
 function validateContentDocument(data, body, file, schema, role) {
@@ -145,6 +148,25 @@ function copyDir(src, dest) {
     if (entry.isDirectory()) copyDir(s, d);
     else fs.copyFileSync(s, d);
   }
+}
+
+function safeSlug(value, file) {
+  const raw = String(value ?? "").trim();
+  const slug = raw.replace(/^\/+|\/+$/g, "");
+  if (!slug) return "";
+  if (path.isAbsolute(raw) || raw.includes("\\") || raw.includes("\0")) {
+    throw new Error(`${file}: unsafe slug "${raw}"`);
+  }
+  const segments = slug.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+    throw new Error(`${file}: unsafe slug "${raw}"`);
+  }
+  const output = path.resolve(DIST, ...segments);
+  const root = path.resolve(DIST);
+  if (output !== root && !output.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`${file}: slug escapes dist/`);
+  }
+  return segments.join("/");
 }
 
 function validateUniqueSlugs(records) {
@@ -287,7 +309,7 @@ function build() {
     .map((file) => {
       const page = loadMarkdown(file);
       validateContentDocument(page, page.body_md, file, schema, "page");
-      const slug = String(page.slug || "").replace(/^\//, "").replace(/\/$/, "");
+      const slug = safeSlug(page.slug, file);
       return { file, page, slug };
     });
   validateUniqueSlugs(records);

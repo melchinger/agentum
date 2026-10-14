@@ -79,6 +79,14 @@
         "pattern": "^[a-zA-Z0-9:_-]+$"
       }
     },
+    "ciScripts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9:_-]+$"
+      },
+      "uniqueItems": true
+    },
     "detect": {
       "$ref": "https://agentum.dev/schemas/common-detect.schema.json"
     },

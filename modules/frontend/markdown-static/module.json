@@ -23,6 +23,7 @@
     "build": "node build.js",
     "validate:content": "node build.js --strict-content"
   },
+  "ciScripts": ["build", "validate:content"],
   "directories": [
     "content",
     "templates",
@@ -44,7 +45,7 @@
   ],
   "commands": [
     "build: node build.js",
-    "dev: node --watch build.js"
+    "dev: node --watch --watch-path=content --watch-path=assets --watch-path=templates build.js"
   ],
   "detect": {
     "files": ["build.js"],

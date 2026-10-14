@@ -21,7 +21,8 @@ This site is a flat-file static site. There is no framework and no server runtim
   front matter. Never put form HTML in Markdown.
 - **Build:** `npm run build` (or `node build.js`) renders `content/` into `dist/` and copies `assets/` verbatim. Use
   `npm run validate:content` in CI when the repository has migrated to the strict content contract.
-  `node --watch build.js` rebuilds on change. Serve `dist/` as static files. `dist/` is
+  `node --watch --watch-path=content --watch-path=assets --watch-path=templates build.js`
+  rebuilds after content, asset, or template changes. Serve `dist/` as static files. `dist/` is
   generated — never edit it and never commit it. The build also generates `robots.txt`,
   `sitemap.xml`, `.well-known/security.txt` (when a valid contact e-mail exists), and the
   deployment header files `_headers` and `.htaccess`; keep these in deployed `dist/`. The

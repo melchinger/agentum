@@ -608,6 +608,8 @@ runTest("generates a static content site with npm CI defaults", () => {
     assert.match(ci, /node-version: 24/);
     assert.match(ci, /npm ci/);
     assert.match(ci, /npm test/);
+    assert.match(ci, /npm run build/);
+    assert.match(ci, /npm run validate:content/);
     assert.doesNotMatch(ci, /pnpm/);
   });
 });
@@ -836,11 +838,9 @@ runTest("generates a composed python repository from profile runtime modules and
     assert.deepEqual(dependabotUpdates, [
       "docker:/",
       "github-actions:/",
-      "npm:/",
-      "pip:/",
-      "cargo:/",
-      "composer:/"
+      "pip:/"
     ]);
+    assert.doesNotMatch(dependabot, /package-ecosystem: (?:npm|cargo|composer)/);
     assert.doesNotMatch(dependabot, /directory: "\/(?:apps\/web|packages\/lib|apps\/api|mail)"/);
     assert.equal(fs.existsSync(path.join(targetDir, "CLAUDE.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, ".github", "workflows", "ci.yml")), true);

@@ -11,9 +11,9 @@ server for the pages themselves. Deploy `dist/` as static files.
 - **SCM onboarding:** set `contentDir=content`, `buildCommand=npm run build`, and
   `buildDir=dist`.
 - **Contact/mail is a pluggable strategy** (exactly one, they are mutually exclusive):
-  - `static-mail-gateway` — form posts to an external service (Formspree/Web3Forms/Basin/
-    self-hosted). Works on static-only hosts. Submissions reach a third party — note it in
-    the privacy page.
+  - `static-mail-gateway` — form posts JSON to a central mail-gateway endpoint implementing
+    the documented `{ to, subject, body, fromName }` / `{ success: true }` contract. Works on
+    static-only hosts. Submissions reach an external service — note it in the privacy page.
   - `phpmailer-endpoint` — self-hosted PHP + SMTP under `/mail/`. Needs a PHP host; no third
     party. Credentials live in `mail/config.inc.php` (git-ignored).
   - `headless-wp-forms` — submits to a Fluent Forms endpoint via `wp-fluent-forms-proxy`.
