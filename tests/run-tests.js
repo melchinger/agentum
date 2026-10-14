@@ -425,7 +425,12 @@ runTest("composes a static content site with a chosen mail strategy", () => {
     assert.equal(fs.existsSync(path.join(targetDir, "build.js")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "content", "site.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "content", "index.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "content", "privacy.md")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "content-schema.json")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "templates", "layout.js")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "assets", "_headers")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "assets", ".htaccess")), true);
+    assert.equal(fs.existsSync(path.join(targetDir, "docs", "static-deployment.md")), true);
     // The forms module owns the contact page and its PHP backend.
     assert.equal(fs.existsSync(path.join(targetDir, "content", "kontakt.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, "mail", "send.php")), true);
@@ -440,11 +445,23 @@ runTest("composes a static content site with a chosen mail strategy", () => {
     assert.equal(pkg.dependencies.marked, "^18.1.0");
     assert.equal(pkg.dependencies.yaml, "^2.9.1");
     assert.equal(pkg.scripts.build, "node build.js");
+    assert.equal(pkg.scripts["validate:content"], "node build.js --strict-content");
     assert.equal(pkg.scripts.test, "node --test");
 
     const buildScript = fs.readFileSync(path.join(targetDir, "build.js"), "utf8");
     assert.match(buildScript, /Unclosed YAML front matter/);
     assert.match(buildScript, /expected a mapping\/object/);
+    assert.match(buildScript, /writeDiscoveryFiles/);
+    assert.match(buildScript, /sitemap\.xml/);
+    assert.match(buildScript, /security\.txt/);
+    assert.match(buildScript, /markdownRenderer\.image/);
+    assert.match(buildScript, /availableSlugs/);
+    assert.match(buildScript, /writeSecurityHeaders/);
+    assert.match(buildScript, /--strict-content/);
+    assert.match(buildScript, /content-schema\.json/);
+    assert.match(buildScript, /duplicate slug/);
+    assert.match(buildScript, /path\.isAbsolute\(slug\)/);
+    assert.doesNotMatch(buildScript, /path\.isAbsolute\(raw\)/);
     assert.equal(buildScript.includes("source.match(/^---\\r?\\n"), true);
     assert.doesNotMatch(buildScript, /source\.match\([^\n]*\/m\)/);
   });
@@ -522,7 +539,10 @@ runTest("static content forms are SCM-safe and render from front matter", () => 
         );
       }
       if (moduleName === "phpmailer-endpoint") assert.match(html, /action="\/mail\/send\.php" method="post"/);
-      else assert.match(html, /data-action="https:\/\/forms\.example\.test\/send"/);
+      else {
+        assert.match(html, /action="" method="post" data-action="https:\/\/forms\.example\.test\/send"/);
+        assert.match(html, /<noscript>/);
+      }
 
       // Every renderer fails the build on absent or unsafe configuration rather
       // than silently emitting a non-functional or dangerous form action.
@@ -549,6 +569,9 @@ runTest("static content forms are SCM-safe and render from front matter", () => 
         );
       }
       assert.doesNotMatch(renderForm({ endpoint: "/send", privacy_url: " \t " }), /href=/);
+      assert.match(renderForm({ endpoint: "/send", recipient: "hello@example.com" }), /mailto:hello@example\.com/);
+      assert.match(renderForm({ endpoint: "/send" }), /action="" method="post"/);
+      assert.doesNotMatch(renderForm({ endpoint: "/send" }), /method="get"/);
 
       const escaped = renderForm({
         endpoint: '/send?next="contact"&tag=<lead>',
@@ -587,6 +610,8 @@ runTest("generates a static content site with npm CI defaults", () => {
     assert.match(ci, /node-version: 24/);
     assert.match(ci, /npm ci/);
     assert.match(ci, /npm test/);
+    assert.match(ci, /npm run build/);
+    assert.match(ci, /npm run validate:content/);
     assert.doesNotMatch(ci, /pnpm/);
   });
 });
@@ -815,11 +840,9 @@ runTest("generates a composed python repository from profile runtime modules and
     assert.deepEqual(dependabotUpdates, [
       "docker:/",
       "github-actions:/",
-      "npm:/",
-      "pip:/",
-      "cargo:/",
-      "composer:/"
+      "pip:/"
     ]);
+    assert.doesNotMatch(dependabot, /package-ecosystem: (?:npm|cargo|composer)/);
     assert.doesNotMatch(dependabot, /directory: "\/(?:apps\/web|packages\/lib|apps\/api|mail)"/);
     assert.equal(fs.existsSync(path.join(targetDir, "CLAUDE.md")), true);
     assert.equal(fs.existsSync(path.join(targetDir, ".github", "workflows", "ci.yml")), true);

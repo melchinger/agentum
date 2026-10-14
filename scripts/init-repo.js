@@ -296,6 +296,19 @@ async function promptForWizard(positionals, flags, io) {
     io.stdout.write(`Available profiles: ${joinNames(profiles)}\n`);
     const profile = await askWithDefault(rl, "Profile (optional)", flags.profile || "");
     const profileManifest = profile ? findByName(profiles, profile, "profile") : null;
+    const profileQuestionModules = [];
+    for (const question of profileManifest?.questions || []) {
+      const answer = await askWithDefault(rl, question.prompt, flags[question.id] || "");
+      const selections = normalizeSelection(answer);
+      const allowed = new Set(question.suggestModules || []);
+      for (const selection of selections) {
+        if (selection === "none") continue;
+        if (allowed.size > 0 && !allowed.has(selection)) {
+          throw new Error(`Unknown selection for ${question.id}: ${selection}`);
+        }
+      }
+      profileQuestionModules.push(...selections.filter((selection) => selection !== "none"));
+    }
 
     // Handle both single-runtime and multi-runtime profiles
     let selectedRuntimes = [];
@@ -328,9 +341,10 @@ async function promptForWizard(positionals, flags, io) {
     const modulesPrompt = profileManifest?.defaultModules?.length
       ? `Additional modules (defaults from profile: ${profileManifest.defaultModules.join(", ")})`
       : "Modules (comma-separated, optional)";
-    const modules = normalizeSelection(
-      await askWithDefault(rl, modulesPrompt, flags.modules || "")
-    );
+    const modules = normalizeSelection([
+      ...profileQuestionModules,
+      ...normalizeSelection(await askWithDefault(rl, modulesPrompt, flags.modules || ""))
+    ]);
 
     io.stdout.write(`Available policies: ${joinNames(policies)}\n`);
     const policiesPrompt = profileManifest?.requiredPolicies?.length

@@ -13,7 +13,7 @@ const {
 } = require("./template-utils");
 const { mergeCargoDependencies, renderCargoDependencies } = require("./cargo-dependencies");
 const { applyNpmDependencies, mergeNpmDependencies } = require("./npm-dependencies");
-const { buildCiCommands, nodeSetupStep } = require("./ci");
+const { buildCiCommands, nodeSetupStep, renderDependabot } = require("./ci");
 
 // Collects the cargo dependency contributions of a resolved composition, in a stable
 // order so the generated Cargo.toml does not churn between runs.
@@ -513,7 +513,8 @@ function collectCompositionOperations(repoRoot, options) {
       runtimeName: runtimes[0].manifest.name,
       packageManager,
       installCommand: renderString((installCommand || "install: true").slice(9), variables),
-      testCommand: renderString((testCommand || "test: true").slice(6), variables)
+      testCommand: renderString((testCommand || "test: true").slice(6), variables),
+      ciScripts: composition.modules.flatMap((entry) => entry.manifest.ciScripts || [])
     });
     operations.push({
       type: "write",
@@ -524,6 +525,13 @@ function collectCompositionOperations(repoRoot, options) {
         CI_SETUP_COMMAND: ciCommands.setup,
         CI_TEST_COMMAND: ciCommands.test
       })
+    });
+  }
+
+  const dependabotOperation = operations.find((entry) => entry.type === "write" && entry.target === path.join(options.targetDir, ".github", "dependabot.yml"));
+  if (dependabotOperation) {
+    dependabotOperation.content = renderDependabot(operations, options.targetDir, {
+      includeGitHubActions: composition.policies.some((entry) => entry.manifest.name === "ci")
     });
   }
 

@@ -11,6 +11,10 @@ const esc = (value = "") =>
 
 const href = (slug = "") => (slug === "" ? "/" : `/${String(slug).replace(/\/$/, "")}/`);
 
+function jsonLd(value) {
+  return JSON.stringify(value).replaceAll("<", "\\u003c");
+}
+
 function navHtml(site, activeSlug) {
   const nav = (site && site.nav) || [];
   return nav
@@ -24,13 +28,39 @@ function navHtml(site, activeSlug) {
     .join("\n        ");
 }
 
-module.exports = function layout(site, { title, description, slug = "", body }) {
+module.exports = function layout(site, { title, description, slug = "", noindex = false, ogImage = "", body }) {
   const meta = (site && site.meta) || {};
   const contact = (site && site.contact) || {};
   const footer = (site && site.footer) || {};
   const base = meta.base_url ? (meta.base_url.endsWith("/") ? meta.base_url : meta.base_url + "/") : "/";
   const canonical = base + (slug ? slug.replace(/\/$/, "") + "/" : "");
-  const fullTitle = slug === "" ? title || meta.site_name : `${title} | ${meta.site_name}`;
+  const fullTitle = slug === "" ? meta.site_title || title || meta.site_name : `${title} | ${meta.site_name}`;
+  const robots = noindex ? "noindex, nofollow" : meta.robots || "index, follow, max-image-preview:large";
+  const lang = meta.lang || "en";
+  const locale = lang === "de" ? "de_DE" : lang === "es" ? "es_ES" : "en_US";
+  const image = ogImage ? (ogImage.startsWith("http") ? ogImage : base.replace(/\/$/, "") + "/" + ogImage.replace(/^\//, "")) : "";
+  const schema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${base}#website`,
+        name: meta.site_name || "",
+        url: base,
+        description: meta.description || description || "",
+        inLanguage: lang
+      },
+      {
+        "@type": "WebPage",
+        "@id": `${canonical}#webpage`,
+        url: canonical,
+        name: fullTitle,
+        description,
+        isPartOf: { "@id": `${base}#website` },
+        inLanguage: lang
+      }
+    ]
+  };
 
   return `<!DOCTYPE html>
 <html lang="${esc(meta.lang || "en")}">
@@ -39,12 +69,17 @@ module.exports = function layout(site, { title, description, slug = "", body }) 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(fullTitle)}</title>
 <meta name="description" content="${esc(description)}">
+<meta name="robots" content="${esc(robots)}">
 <link rel="canonical" href="${esc(canonical)}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="${esc(meta.site_name || "")}">
+<meta property="og:locale" content="${esc(locale)}">
 <meta property="og:title" content="${esc(fullTitle)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${esc(canonical)}">
+${image ? `<meta property="og:image" content="${esc(image)}">\n<meta property="og:image:alt" content="${esc(meta.og_image_alt || fullTitle)}">` : ""}
+<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}">
+<script type="application/ld+json">${jsonLd(schema)}</script>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -70,7 +105,10 @@ ${body}
     <p class="footer-contact">
       ${contact.email ? `<a href="mailto:${esc(contact.email)}">${esc(contact.email)}</a>` : ""}
     </p>
-    <p class="footer-legal">&copy; ${esc(meta.site_name || "")}</p>
+    <p class="footer-legal">
+      &copy; ${esc(meta.site_name || "")}
+      ${footer.privacy_url ? ` · <a href="${esc(footer.privacy_url)}">${esc(footer.privacy_label || "Privacy")}</a>` : ""}
+    </p>
   </div>
 </footer>
 

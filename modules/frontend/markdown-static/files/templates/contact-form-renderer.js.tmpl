@@ -38,6 +38,11 @@ function safeUrl(value, field, required = false) {
   return url;
 }
 
+function safeEmail(value) {
+  const email = String(value || "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+}
+
 function fieldHtml(field, index) {
   if (field === null || typeof field !== "object" || Array.isArray(field)) {
     throw new Error(`form.fields[${index}] must be an object.`);
@@ -76,11 +81,14 @@ module.exports = function contactForm(form = {}) {
   const labels = form.labels || {};
   const endpoint = safeUrl(form.endpoint, "form.endpoint", true);
   const transport = form.transport === "formdata" ? "formdata" : "json";
+  // JSON gateways need JavaScript, but the HTML form must never fall back to
+  // GET: that would put names, e-mail addresses and messages into URLs/logs.
   const action = transport === "formdata"
     ? ` action="${esc(endpoint)}" method="post"`
-    : ` data-action="${esc(endpoint)}"`;
+    : ` action="" method="post" data-action="${esc(endpoint)}"`;
   const gateway = form.recipient ? ` data-to="${esc(form.recipient)}"` : "";
   const fromName = form.from_name ? ` data-from-name="${esc(form.from_name)}"` : "";
+  const fallbackEmail = safeEmail(form.fallback_email || form.recipient);
   const fields = Array.isArray(form.fields) ? form.fields : [];
   const privacyUrl = safeUrl(form.privacy_url, "form.privacy_url");
   const privacyText = esc(labels.privacy || "I have read the privacy notice.");
@@ -101,6 +109,7 @@ ${fields.map(fieldHtml).join("\n")}
   <p id="formStatus" class="form-status" role="alert" hidden></p>
   <button type="submit" class="btn">${esc(labels.submit || "Send message")}</button>
   <p class="form-hint">${esc(labels.hint || "Your details are treated confidentially.")}</p>
+  ${fallbackEmail ? `<noscript><p class="form-hint">JavaScript is required for the form. You can also <a href="mailto:${esc(fallbackEmail)}">contact us by e-mail</a>.</p></noscript>` : `<noscript><p class="form-hint">JavaScript is required to submit this form.</p></noscript>`}
 </form>
 <div id="contactThanks" class="form-thanks" hidden>
   <strong>${esc(labels.success_title || "Thank you!")}</strong> ${esc(labels.success || "Your message has been sent.")}

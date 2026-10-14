@@ -23,8 +23,26 @@ const ROOT = __dirname;
 const CONTENT = path.join(ROOT, "content");
 const ASSETS = path.join(ROOT, "assets");
 const DIST = path.join(ROOT, "dist");
+const CONTENT_SCHEMA_FILE = path.join(ROOT, "content-schema.json");
+const STRICT_CONTENT = process.argv.includes("--strict-content");
 
-marked.setOptions({ gfm: true, breaks: false });
+const escapeHtml = (value = "") => String(value)
+  .replaceAll("&", "&amp;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;");
+
+// Markdown images are content assets, not layout decoration. Add the safe
+// browser hints automatically; authors still provide the alt text in Markdown.
+const markdownRenderer = new marked.Renderer();
+markdownRenderer.html = ({ text }) => escapeHtml(text || "");
+markdownRenderer.image = ({ href, title, text }) => {
+  const src = escapeHtml(href || "");
+  const alt = escapeHtml(text || "");
+  const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+  return `<img src="${src}" alt="${alt}" loading="lazy" decoding="async"${titleAttr}>`;
+};
+marked.setOptions({ gfm: true, breaks: false, renderer: markdownRenderer });
 
 function loadMarkdown(file) {
   const source = fs.readFileSync(file, "utf8");
@@ -47,8 +65,74 @@ function loadMarkdown(file) {
   };
 }
 
+function readContentSchema() {
+  if (!fs.existsSync(CONTENT_SCHEMA_FILE)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(CONTENT_SCHEMA_FILE, "utf8"));
+  } catch (error) {
+    throw new Error(`Invalid content-schema.json: ${error.message}`);
+  }
+}
+
+function validateSchemaValue(value, schema, pathLabel, errors, { required = true } = {}) {
+  if (!schema || typeof schema !== "object") return;
+  const typeMatches = {
+    object: value !== null && typeof value === "object" && !Array.isArray(value),
+    array: Array.isArray(value),
+    string: typeof value === "string",
+    boolean: typeof value === "boolean",
+    number: typeof value === "number" && Number.isFinite(value),
+  };
+  if (schema.type && !typeMatches[schema.type]) {
+    errors.push(`${pathLabel} must be ${schema.type}`);
+    return;
+  }
+  if (schema.minLength !== undefined && typeof value === "string" && value.length < schema.minLength) {
+    errors.push(`${pathLabel} must not be empty`);
+  }
+  if (schema.pattern && typeof value === "string" && !new RegExp(schema.pattern).test(value)) {
+    errors.push(`${pathLabel} has an invalid format`);
+  }
+  if (schema.required && typeMatches.object) {
+    for (const key of schema.required) {
+      if (required && !(key in value)) errors.push(`${pathLabel}.${key} is required`);
+    }
+  }
+  if (schema.properties && typeMatches.object) {
+    for (const [key, childSchema] of Object.entries(schema.properties)) {
+      if (key in value) validateSchemaValue(value[key], childSchema, `${pathLabel}.${key}`, errors, { required });
+    }
+  }
+  if (schema.items && typeMatches.array) {
+    value.forEach((item, index) => validateSchemaValue(item, schema.items, `${pathLabel}[${index}]`, errors, { required }));
+  }
+}
+
+function unsupportedMarkdownFeatures(body) {
+  const visit = (value) => {
+    if (Array.isArray(value)) return value.some(visit);
+    if (!value || typeof value !== "object") return false;
+    if (value.type === "html" || value.type === "checkbox" || value.task === true) return true;
+    return Object.values(value).some(visit);
+  };
+  return visit(marked.lexer(body));
+}
+
+function validateContentDocument(data, body, file, schema, role) {
+  if (!schema) return;
+  const errors = [];
+  validateSchemaValue(data, schema.$defs?.[role], "frontmatter", errors, { required: STRICT_CONTENT });
+  if (unsupportedMarkdownFeatures(body)) {
+    errors.push("body contains raw HTML or task-list Markdown, which SCM cannot edit losslessly");
+  }
+  if (!errors.length) return;
+  const message = `${file}: ${errors.join("; ")}`;
+  if (STRICT_CONTENT) throw new Error(message);
+  console.warn(`WARN ${message}`);
+}
+
 function* walk(dir) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) yield* walk(full);
     else if (entry.name.endsWith(".md")) yield full;
@@ -66,6 +150,38 @@ function copyDir(src, dest) {
   }
 }
 
+function safeSlug(value, file) {
+  const raw = String(value ?? "").trim();
+  const slug = raw.replace(/^\/+|\/+$/g, "");
+  if (!slug) return "";
+  if (path.isAbsolute(slug) || raw.includes("\\") || raw.includes("\0")) {
+    throw new Error(`${file}: unsafe slug "${raw}"`);
+  }
+  const segments = slug.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+    throw new Error(`${file}: unsafe slug "${raw}"`);
+  }
+  const output = path.resolve(DIST, ...segments);
+  const root = path.resolve(DIST);
+  if (output !== root && !output.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`${file}: slug escapes dist/`);
+  }
+  return segments.join("/");
+}
+
+function validateUniqueSlugs(records) {
+  const seen = new Map();
+  for (const { file, slug } of records) {
+    if (!seen.has(slug)) {
+      seen.set(slug, file);
+      continue;
+    }
+    const message = `${file}: duplicate slug "${slug}" also used by ${seen.get(slug)}`;
+    if (STRICT_CONTENT) throw new Error(message);
+    console.warn(`WARN ${message}`);
+  }
+}
+
 function cleanDist() {
   // Empty dist/ without deleting the directory itself, so a running preview
   // server that holds it as its working directory does not break the build.
@@ -80,32 +196,156 @@ function cleanDist() {
   }
 }
 
+function xmlEscape(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function normalizedBaseUrl(site) {
+  const configured = String(site?.meta?.base_url || "").trim();
+  return configured ? (configured.endsWith("/") ? configured : `${configured}/`) : "";
+}
+
+function pageUrl(baseUrl, slug) {
+  const relative = slug ? `${slug.replace(/^\/+|\/+$/g, "")}/` : "";
+  return baseUrl ? `${baseUrl}${relative}` : `/${relative}`;
+}
+
+function formConnectOrigins(site, pages) {
+  const origins = new Set();
+  for (const { page } of pages) {
+    const endpoint = page.form && page.form.endpoint;
+    if (!endpoint) continue;
+    try {
+      const parsed = new URL(String(endpoint), normalizedBaseUrl(site) || "https://relative.invalid/");
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        if (parsed.origin !== "https://relative.invalid") origins.add(parsed.origin);
+      }
+    } catch {
+      // The form renderer already rejects invalid endpoints. Keep this helper defensive.
+    }
+  }
+  return [...origins].sort();
+}
+
+function writeSecurityHeaders(site, pages) {
+  const connectSrc = ["'self'", ...formConnectOrigins(site, pages)].join(" ");
+  const csp = `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self'; connect-src ${connectSrc}; form-action 'self'`;
+  fs.writeFileSync(path.join(DIST, "_headers"), `/*
+  Content-Security-Policy: ${csp}
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Strict-Transport-Security: max-age=31536000
+
+/*.css
+  Cache-Control: public, max-age=604800
+/*.js
+  Cache-Control: public, max-age=604800
+/*.woff2
+  Cache-Control: public, max-age=604800
+/*.webp
+  Cache-Control: public, max-age=604800
+/*.avif
+  Cache-Control: public, max-age=604800
+/*.jpg
+  Cache-Control: public, max-age=604800
+/*.jpeg
+  Cache-Control: public, max-age=604800
+/*.png
+  Cache-Control: public, max-age=604800
+/*.svg
+  Cache-Control: public, max-age=604800
+`);
+  fs.writeFileSync(path.join(DIST, ".htaccess"), `<IfModule mod_headers.c>
+  Header always set Content-Security-Policy "${csp}"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Strict-Transport-Security "max-age=31536000"
+
+  <FilesMatch "\\.(css|js|woff2|webp|avif|jpe?g|png|svg)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+</IfModule>
+`);
+}
+
+function writeDiscoveryFiles(site, pages) {
+  const baseUrl = normalizedBaseUrl(site);
+  const sitemapUrl = baseUrl ? `${baseUrl}sitemap.xml` : "/sitemap.xml";
+  const publicPages = pages.filter(({ page }) => page.noindex !== true && page.sitemap !== false);
+  const urls = publicPages.map(({ slug }) => `  <url><loc>${xmlEscape(pageUrl(baseUrl, slug))}</loc></url>`).join("\n");
+  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+  fs.writeFileSync(path.join(DIST, "sitemap.xml"), sitemap);
+  fs.writeFileSync(path.join(DIST, "robots.txt"), `User-agent: *\nAllow: /\n\nSitemap: ${sitemapUrl}\n`);
+
+  const email = String(site?.contact?.email || "").trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const securityDir = path.join(DIST, ".well-known");
+    fs.mkdirSync(securityDir, { recursive: true });
+    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    fs.writeFileSync(
+      path.join(securityDir, "security.txt"),
+      `Contact: mailto:${email}\nExpires: ${expires}\nPreferred-Languages: ${site?.meta?.lang || "en"}\n${baseUrl ? `Canonical: ${baseUrl}\n` : ""}`
+    );
+  }
+}
+
 function build() {
-  const site = loadMarkdown(path.join(CONTENT, "site.md"));
+  const schema = readContentSchema();
+  const siteFile = path.join(CONTENT, "site.md");
+  const site = loadMarkdown(siteFile);
+  validateContentDocument(site, site.body_md, siteFile, schema, "site");
+
+  const records = [...walk(CONTENT)]
+    .filter((file) => path.basename(file) !== "site.md")
+    .map((file) => {
+      const page = loadMarkdown(file);
+      validateContentDocument(page, page.body_md, file, schema, "page");
+      const slug = safeSlug(page.slug, file);
+      return { file, page, slug };
+    });
+  validateUniqueSlugs(records);
   cleanDist();
 
+  const availableSlugs = new Set(records.map(({ slug }) => slug));
+  const configuredNav = Array.isArray(site.nav) ? site.nav : [];
+  const nav = configuredNav.filter((item) => item.slug === "" || availableSlugs.has(String(item.slug || "").replace(/^\//, "").replace(/\/$/, "")));
+  if (availableSlugs.has("kontakt") && !nav.some((item) => item.slug === "kontakt")) {
+    nav.push({ slug: "kontakt", label: "Contact" });
+  }
+  const renderedSite = { ...site, nav };
+
   let count = 0;
-  for (const file of walk(CONTENT)) {
-    if (path.basename(file) === "site.md") continue;
-
-    const p = loadMarkdown(file);
-    const slug = String(p.slug || "").replace(/^\//, "").replace(/\/$/, "");
-
-    const html = layout(site, {
+  const pages = [];
+  for (const { page: p, slug } of records) {
+    const html = layout(renderedSite, {
       title: p.title,
       description: p.description || (site.meta && site.meta.description) || "",
       slug,
-      body: page(site, p),
+      noindex: p.noindex === true,
+      ogImage: p.og_image || (site.meta && site.meta.og_image) || "",
+      body: page(renderedSite, p),
     });
 
     const outDir = slug === "" ? DIST : path.join(DIST, slug);
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, "index.html"), html);
+    pages.push({ slug, page: p });
     count += 1;
     console.log(`OK  /${slug}`);
   }
 
   copyDir(ASSETS, DIST);
+  writeSecurityHeaders(site, pages);
+  writeDiscoveryFiles(site, pages);
   console.log(`\n${count} page(s) built -> dist/`);
 }
 

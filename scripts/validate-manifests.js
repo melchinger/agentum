@@ -284,10 +284,14 @@ function validateModuleManifest(manifest, filePath) {
   validateStringArray(manifest.compatibleRuntimes, `${filePath}: compatibleRuntimes`, errors, {
     minItems: 1
   });
-  for (const field of ["requiresModules", "conflictsWith", "implies", "directories", "requiredFiles", "commands", "env"]) {
+  for (const field of ["requiresModules", "conflictsWith", "implies", "directories", "requiredFiles", "commands", "env", "ciScripts"]) {
     if (field in manifest) {
       validateStringArray(manifest[field], `${filePath}: ${field}`, errors, {
-        pattern: field === "commands" ? /^[a-z0-9-]+: .+/ : null
+        pattern: field === "commands"
+        ? /^[a-z0-9-]+: .+/
+        : field === "ciScripts"
+          ? /^[a-zA-Z0-9:_-]+$/
+          : null
       });
     }
   }
