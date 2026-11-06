@@ -36,21 +36,21 @@ description = "Brand-formatted PDF generation service with FastAPI, HTMX, MCP, a
 # Keep this aligned with the pinned Playwright Noble image, which includes Python 3.12.
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.143,<1.0",
+  "fastapi>=0.162,<1.0",
   "uvicorn[standard]>=0.54,<1.0",
   "jinja2>=3.1.6,<4.0",
-  "python-multipart>=0.0.32,<1.0",
-  "sqlalchemy>=2.1.4,<3.0",
-  "psycopg[binary]>=3.3.6,<4.0",
-  "alembic>=1.20,<2.0",
-  "pydantic-settings>=2.15,<3.0",
-  "playwright>=1.63,<2.0",
-  "markdown>=3.11,<4.0"
+  "python-multipart>=0.0.33,<1.0",
+  "sqlalchemy>=2.1.8,<3.0",
+  "psycopg[binary]>=3.3.8,<4.0",
+  "alembic>=1.20.1,<2.0",
+  "pydantic-settings>=2.16.2,<3.0",
+  "playwright>=1.64,<2.0",
+  "markdown>=3.11.3,<4.0"
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=9.1.1,<10.0",
+  "pytest>=9.2,<10.0",
   "httpx>=0.28.1,<1.0"
 ]
 
@@ -146,7 +146,7 @@ Write-Utf8NoBom (Join-Path $root ".dockerignore") @'
 '@
 
 Write-Utf8NoBom (Join-Path $root "Dockerfile") @'
-FROM mcr.microsoft.com/playwright/python:v1.63.0-noble@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0
+FROM mcr.microsoft.com/playwright/python:v1.64.1-noble@sha256:330d401ae23c905896a0c26c66c36fc971b621519e7b11b435a8328d7bf6e031
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -591,7 +591,7 @@ Write-Utf8NoBom (Join-Path $root "templates\index.html") @'
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>brandFormat</title>
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.11"></script>
     <style>
       :root {
         --bg: #f6f0e6;
