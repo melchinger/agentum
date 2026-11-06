@@ -5,14 +5,14 @@
   "compatibleRuntimes": ["node"],
   "npmDependencies": {
     "dependencies": {
-      "openid-client": "^6.8.8",
+      "openid-client": "^6.8.9",
       "express": "^5.3.0",
       "express-session": "^1.19.0"
     },
     "devDependencies": {
       "@types/express": "^5.0.6",
       "@types/express-session": "^1.19.0",
-      "@types/node": "^26.6.5"
+      "@types/node": "^26.6.6"
     }
   },
   "directories": ["src/auth", "docs"],

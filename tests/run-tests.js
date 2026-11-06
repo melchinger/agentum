@@ -326,7 +326,7 @@ runTest("composes an axum service with merged cargo dependencies", () => {
     // Both modules contribute to the one Cargo.toml the rust runtime owns.
     assert.ok(cargoToml.includes('axum = "0.8"'), cargoToml);
     assert.ok(cargoToml.includes("sqlx = {"), cargoToml);
-    assert.ok(cargoToml.includes('jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto"] }'), cargoToml);
+    assert.ok(cargoToml.includes('jsonwebtoken = { version = "11", default-features = false, features = ["aws_lc_rs"] }'), cargoToml);
     // The runtime's placeholder must not survive into the generated manifest.
     assert.ok(!cargoToml.includes("{{"), cargoToml);
     // axum is declared by both modules and must appear exactly once.
@@ -398,8 +398,8 @@ runTest("routes npm dependencies to the workspace that needs them", () => {
 
     // The auth layer belongs to the frontend workspace, not the repository root.
     const web = JSON.parse(fs.readFileSync(path.join(targetDir, "apps", "web", "package.json"), "utf8"));
-    assert.equal(web.dependencies["openid-client"], "^6.8.8");
-    assert.equal(web.dependencies.jose, "^6.2.12");
+    assert.equal(web.dependencies["openid-client"], "^6.8.9");
+    assert.equal(web.dependencies.jose, "^6.2.15");
     // sveltekit's own devDependencies must survive the merge.
     assert.ok(web.devDependencies["@sveltejs/kit"], JSON.stringify(web.devDependencies));
 
@@ -442,7 +442,7 @@ runTest("composes a static content site with a chosen mail strategy", () => {
 
     // The runtime owns package.json; the module contributes its deps by merge.
     const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
-    assert.equal(pkg.dependencies.marked, "^18.1.0");
+    assert.equal(pkg.dependencies.marked, "^18.1.3");
     assert.equal(pkg.dependencies.yaml, "^2.9.1");
     assert.equal(pkg.scripts.build, "node build.js");
     assert.equal(pkg.scripts["validate:content"], "node build.js --strict-content");
@@ -758,9 +758,9 @@ runTest("generates a Next.js flat ESLint configuration", () => {
 
     const webPackage = JSON.parse(fs.readFileSync(path.join(targetDir, "apps", "web", "package.json"), "utf8"));
     assert.equal(webPackage.scripts.lint, "eslint .");
-    assert.equal(webPackage.devDependencies.eslint, "^10.12.0");
+    assert.equal(webPackage.devDependencies.eslint, "^10.14.0");
     assert.equal(webPackage.devDependencies["@eslint/js"], "^10.0.1");
-    assert.equal(webPackage.devDependencies["typescript-eslint"], "^8.71.1");
+    assert.equal(webPackage.devDependencies["typescript-eslint"], "^8.72.1");
     assert.equal(webPackage.devDependencies["eslint-config-next"], undefined);
 
     const eslintConfigPath = path.join(targetDir, "apps", "web", "eslint.config.mjs");
@@ -824,7 +824,7 @@ runTest("generates a composed python repository from profile runtime modules and
     assert.equal(fs.existsSync(path.join(targetDir, "Dockerfile")), true);
     assert.equal(fs.existsSync(path.join(targetDir, ".dockerignore")), true);
     const dockerfile = fs.readFileSync(path.join(targetDir, "Dockerfile"), "utf8");
-    assert.match(dockerfile, /python:3\.14-slim@sha256:a2b82f3c/);
+    assert.match(dockerfile, /python:3\.14-slim@sha256:ac25e5af/);
     assert.match(dockerfile, /COPY \. \/app/);
     assert.match(dockerfile, /--no-cache-dir/);
     assert.match(dockerfile, /USER appuser/);
@@ -938,6 +938,10 @@ runTest("generates a composed boardgame.io game repository", () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(targetDir, "package.json"), "utf8"));
     assert.ok(pkg.dependencies["boardgame.io"]);
     assert.ok(pkg.dependencies.react);
+    assert.equal(pkg.overrides["boardgame.io"]["@koa/cors"], "^5.0.0");
+    assert.equal(pkg.overrides["boardgame.io"]["koa-socket-2"]["socket.io"], "^4.8.4");
+    assert.equal(pkg.overrides["boardgame.io"]["react-cookies"].cookie, "^1.0.2");
+    assert.equal(pkg.overrides["boardgame.io"].svelte, "^5.57.3");
     assert.equal(pkg.scripts.test, "vitest run");
     assert.equal(pkg.scripts.serve, "tsx watch src/server/index.ts");
 
@@ -1212,7 +1216,7 @@ runTest("composes the subscription-center-rust integration for an Axum service",
 
     // The OIDC crates must reach Cargo.toml without a hand-edit.
     const cargoToml = fs.readFileSync(path.join(targetDir, "Cargo.toml"), "utf8");
-    assert.match(cargoToml, /jsonwebtoken = \{ version = "11", default-features = false, features = \["rust_crypto"\] \}/);
+    assert.match(cargoToml, /jsonwebtoken = \{ version = "11", default-features = false, features = \["aws_lc_rs"\] \}/);
     assert.match(cargoToml, /reqwest = \{ version = "0\.13", default-features = false, features = \["json", "rustls"\] \}/);
     assert.doesNotMatch(cargoToml, /webpki-roots/);
 
